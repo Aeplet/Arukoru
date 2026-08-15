@@ -9,7 +9,7 @@ from discord.app_commands.errors import CommandInvokeError, TransformerError, Ch
 from discord.ext import commands
 from discord.utils import format_dt
 
-from constants import TOKEN, OWNERS, BOT_ERROR_CHANNEL_ID, SERVER_LOGS_CHANNEL_ID, MOD_LOGS_CHANNEL_ID, MESSAGE_LOGS_CHANNEL_ID, BOT_DEVELOPERS
+from constants import TOKEN, BOT_ERROR_CHANNEL_ID, SERVER_LOGS_CHANNEL_ID, MOD_LOGS_CHANNEL_ID, MESSAGE_LOGS_CHANNEL_ID
 from utils.enums import ServerAction, MessageLog
 from utils.helpers import AppNotBotDeveloper, AppNotStaffCheck, post_message_log, post_server_log, handle_honeypot_action
 from utils.database import init_database
@@ -29,7 +29,12 @@ class Bot(commands.Bot):
         self.mod_logs_channel = (self.get_channel(MOD_LOGS_CHANNEL_ID) or await self.fetch_channel(MOD_LOGS_CHANNEL_ID))
         self.message_logs_channel = (self.get_channel(MESSAGE_LOGS_CHANNEL_ID) or await self.fetch_channel(MESSAGE_LOGS_CHANNEL_ID))
 
-bot = Bot(command_prefix=".", intents=intents, allowed_mentions=allowed_mentions, owner_ids=OWNERS)
+        # sync slash commands
+        await self.tree.sync()
+        print("Synced app commands successfully!")
+
+
+bot = Bot(command_prefix=commands.when_mentioned, intents=intents, allowed_mentions=allowed_mentions)
 
 cogs_list = [
     "cogs.extras",

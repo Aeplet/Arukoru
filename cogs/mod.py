@@ -7,7 +7,7 @@ import sys
 import re
 from datetime import datetime, timedelta
 
-from utils.helpers import check_staff_target, is_staff, is_staff_app_check, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist
+from utils.helpers import check_staff_target, is_staff, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist
 from utils.enums import ActionType
 import utils.database as database
 
@@ -21,7 +21,7 @@ class Mod(commands.Cog):
 
     async def check_discord_invites_message(self, message: discord.Message):
         # todo: some message log bs for this. #message-logs already logs these naturally so for now it's fine?
-        if is_staff(member=message.author, guild=message.guild): # staff immunity
+        if is_staff(member=message.author): # staff immunity
             return
 
         regex = r"(?:https?://)?(?:www\.)?(?:discord\.gg|discord(?:app)?\.com/invite)(?::\d+)?/[\w-]+(?:\?[^\s]*)?" # thanks to shlok
@@ -65,7 +65,7 @@ class Mod(commands.Cog):
             await handle_honeypot_action(user=message.author, guild=message.channel.guild, reason="Sent message in honeypot channel", log_channel=self.bot.mod_logs_channel)
 
     # todo: warn cog
-    @is_staff_app_check()
+    @app_commands.default_permissions(moderate_members=True)
     @app_commands.guild_only()
     @app_commands.describe(user="The user to warn", reason="The reason to warn the user", skip_action="If the automated action that the warn should apply should be skipped")
     @app_commands.command(name="warn", description="Warn a user. Notifys them via DMs (if possible)")
@@ -99,7 +99,7 @@ class Mod(commands.Cog):
         warn_id = (await get_latest_user_warning(user.id))[0]
         await post_action_log(target=user, action=ActionType.Warn, channel=self.bot.mod_logs_channel, color=discord.Color.orange(), author=interaction.user, reason=f"{reason} (**Warn #{warn_count} | ID {warn_id}**)")
 
-    @is_staff_app_check()
+    @app_commands.default_permissions(moderate_members=True)
     @app_commands.guild_only()
     @app_commands.describe(warn_id="The ID of the warn to remove, you can get this via using /warn-list on a user.", reason="Reason for removing the warn")
     @app_commands.command(name="warn-remove", description="Remove a warn from a user")
@@ -116,8 +116,8 @@ class Mod(commands.Cog):
     async def list_warns_command(self, interaction: discord.Interaction, user: discord.User = None, ephemeral: bool = False):
         if user == None: # why not
             user = interaction.user
-        if not is_staff(member=interaction.user, guild=interaction.guild) and user.id != interaction.user.id:
-            await interaction.response.send_message("This commmand can only be used on yourself.", ephemeral=ephemeral)
+        if not is_staff(member=interaction.user) and user.id != interaction.user.id:
+            await interaction.response.send_message("This commmand can only be used on yourself.", ephemeral=True)
             return
 
         if await get_user_warning_count(user.id) < 1:
@@ -130,14 +130,14 @@ class Mod(commands.Cog):
         for count, (warn_id, user_id, issuer_id, reason, timestamp) in enumerate(warnings, start=1):
             value = f"Warning ID: {warn_id}\n"
             value += f"Reason: {reason}\n"
-            if is_staff(member=interaction.user, guild=interaction.guild):
-                value += f"Issuer: {issuer_id}"
+            if is_staff(member=interaction.user):
+                value += f"Issuer: <@{issuer_id}>"
 
             embed.add_field(name=f"{count}: <t:{int(datetime.strptime(timestamp, '%Y-%m-%d %H:%M:%S').timestamp())}>", value=value)
         await interaction.response.send_message(embeds=[embed], ephemeral=ephemeral)
 
     # this should be moved into an invite cog?
-    @is_staff_app_check()
+    @app_commands.default_permissions(moderate_members=True)
     @app_commands.guild_only()
     @app_commands.describe(guild_id="The ID of the guild/server to whitelist invites for")
     @app_commands.command(name="whitelist-guild-invite", description="Whitelist invites for a guild/server")
@@ -148,7 +148,7 @@ class Mod(commands.Cog):
         await database.execute(query="INSERT INTO whitelisted_guilds (guild_id, adder_id) VALUES (?, ?)", parameters=(guild_id, interaction.user.id,))
         await interaction.response.send_message(f"Successfully whitelisted guild {guild_id} for invites!")
 
-    @is_staff_app_check()
+    @app_commands.default_permissions(moderate_members=True)
     @app_commands.guild_only()
     @app_commands.describe(guild_id="The ID of the guild/server to unwhitelist invites for")
     @app_commands.command(name="unwhitelist-guild-invite", description="Unwhitelist invites for a guild/server")
@@ -194,7 +194,7 @@ class Mod(commands.Cog):
     async def user_info_command(self, interaction: discord.Interaction, user: discord.User = None, ephemeral: bool = False):
         if user == None: # why not
             user = interaction.user
-        if not is_staff(member=interaction.user, guild=interaction.guild) and user.id != interaction.user.id:
+        if not is_staff(member=interaction.user) and user.id != interaction.user.id:
             await interaction.response.send_message("This commmand can only be used on yourself.", ephemeral=True)
             return
         guild = interaction.guild

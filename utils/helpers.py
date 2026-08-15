@@ -5,7 +5,7 @@ from discord.ext import commands
 
 import sys
 
-from constants import BOT_DEVELOPERS, MODMAIL_USER_ID, STAFF_ROLE_ID, KILLBOX_DELETE_MESSAGE_SECONDS
+from constants import BOT_DEVELOPERS, MODMAIL_USER_ID, KILLBOX_DELETE_MESSAGE_SECONDS
 from utils.enums import ActionType, ServerAction, MessageLog, Restriction
 import utils.database as database
 
@@ -87,27 +87,15 @@ def is_bot_developer_app_check():
         raise AppNotBotDeveloper("You are not a bot developer, and therefore can't use this command.")
     return app_commands.check(predicate)
 
-def is_staff_app_check():
-    async def predicate(interaction: discord.Interaction) -> bool:
-        user = interaction.user
-        role = interaction.guild.get_role(STAFF_ROLE_ID)
-        if isinstance(user, discord.Member):
-            if role in user.roles:
-                return True
-        raise AppNotStaffCheck("You are not staff, and therefore can't use this command.")
-    return app_commands.check(predicate)
-
-def is_staff(member: discord.Member, guild: discord.Guild):
-    role = guild.get_role(STAFF_ROLE_ID)
+def is_staff(member: discord.Member):
     if isinstance(member, discord.Member):
-        if role in member.roles:
+        if member.guild_permissions.moderate_members:
             return True
     return False
 
 async def check_staff_target(interaction: discord.Interaction, user: discord.User):
-    role = interaction.guild.get_role(STAFF_ROLE_ID)
     if isinstance(user, discord.Member):
-        if role in user.roles:
+        if user.guild_permissions.moderate_members:
             await interaction.response.send_message("You cannot perform this action on this user.", ephemeral=True)
             return True
     return False
@@ -123,7 +111,7 @@ async def post_honeypot_log(user: discord.User, channel: discord.TextChannel, re
     await channel.send(embeds=[embed])
 
 async def handle_honeypot_action(user: discord.User, guild: discord.Guild, reason: str, log_channel: discord.TextChannel): # reason is string because I'm lazy :)
-    if is_staff(member=user, guild=guild): # staff are immune
+    if is_staff(member=user): # staff are immune
         return
     await guild.ban(user, reason="Triggered honeypot, banning to purge messages", delete_message_seconds=KILLBOX_DELETE_MESSAGE_SECONDS)
     await guild.unban(user, reason="Triggered honeypot, unbanning after purging messages")

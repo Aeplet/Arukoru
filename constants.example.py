@@ -2,12 +2,10 @@
 TOKEN = "Token here"
 
 # USER IDs
-OWNERS = [] 
 BOT_DEVELOPERS = [] # fill in like ID, ID (82870140068171776, 1469810031229927618)
 MODMAIL_USER_ID = 
 
 # ROLE IDs
-STAFF_ROLE_ID =
 HONEYPOT_ROLE_ID =
 
 # CHANNEL IDs
@@ -25,5 +23,3 @@ DISCORD_USER_URL = "https://discord.com/users/"
 DISCORD_OAUTH2_LINK = "https://discord.com/oauth2/authorize?client_id="
 
 DATABASE_FILE_NAME = "bot_database.db"
-
-TEMPORARY_WHITELISTED_GUILD_IDS = []
