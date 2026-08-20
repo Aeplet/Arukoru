@@ -9,9 +9,10 @@ from discord.app_commands.errors import CommandInvokeError, TransformerError, Ch
 from discord.ext import commands
 from discord.utils import format_dt
 
-from constants import TOKEN, BOT_ERROR_CHANNEL_ID, SERVER_LOGS_CHANNEL_ID, MOD_LOGS_CHANNEL_ID, MESSAGE_LOGS_CHANNEL_ID
-from utils.enums import ServerAction, MessageLog
-from utils.helpers import AppNotBotDeveloper, AppNotStaffCheck, post_message_log, post_server_log, handle_honeypot_action
+from constants import TOKEN, BOT_ERROR_CHANNEL_ID
+from utils.enums import ServerAction, MessageLog, LogChannelType
+from utils.helpers import AppNotBotDeveloper, AppNotStaffCheck, post_message_log, post_server_log
+from utils.channels import get_log_channel
 from utils.database import init_database
 
 discord.utils.setup_logging()
@@ -25,11 +26,6 @@ allowed_mentions = discord.AllowedMentions(everyone=False, roles=False)
 
 class Bot(commands.Bot):
     async def setup_hook(self):
-        self.server_logs_channel = (self.get_channel(SERVER_LOGS_CHANNEL_ID) or await self.fetch_channel(SERVER_LOGS_CHANNEL_ID))
-        self.mod_logs_channel = (self.get_channel(MOD_LOGS_CHANNEL_ID) or await self.fetch_channel(MOD_LOGS_CHANNEL_ID))
-        self.message_logs_channel = (self.get_channel(MESSAGE_LOGS_CHANNEL_ID) or await self.fetch_channel(MESSAGE_LOGS_CHANNEL_ID))
-
-        # sync slash commands
         await self.tree.sync()
         print("Synced app commands successfully!")
 
@@ -41,7 +37,8 @@ cogs_list = [
     "cogs.mod",
     "cogs.dev",
     "cogs.restriction",
-    "cogs.logs"
+    "cogs.logs",
+    "cogs.configuration"
 ]
 
 async def load_extensions():
@@ -57,11 +54,11 @@ async def on_ready():
 
 @bot.event
 async def on_member_join(member: discord.Member):
-    await post_server_log(bot=bot, serverAction=ServerAction.Join, channel=bot.server_logs_channel, color=discord.Color.gold(), target=member, note=f"Created: {member.created_at} ({format_dt(member.created_at)}) ({format_dt(member.created_at, style='R')})")
+    await post_server_log(bot=bot, serverAction=ServerAction.Join, channel=await get_log_channel(guild=member.guild, log_channel_type=LogChannelType.ServerLogs), color=discord.Color.gold(), target=member, note=f"Created: {member.created_at} ({format_dt(member.created_at)}) ({format_dt(member.created_at, style='R')})")
 
 @bot.event
 async def on_member_remove(member: discord.Member):
-    await post_server_log(bot=bot, serverAction=ServerAction.Leave, channel=bot.server_logs_channel, color=discord.Color.gold(), target=member, note=f"Created: {member.created_at} ({format_dt(member.created_at)}) ({format_dt(member.created_at, style='R')})")
+    await post_server_log(bot=bot, serverAction=ServerAction.Leave, channel=await get_log_channel(guild=member.guild, log_channel_type=LogChannelType.ServerLogs), color=discord.Color.gold(), target=member, note=f"Created: {member.created_at} ({format_dt(member.created_at)}) ({format_dt(member.created_at, style='R')})")
 
 @bot.event
 async def on_message(message: discord.Message):
@@ -73,7 +70,7 @@ async def on_message_delete(message: discord.Message):
         return
     if message.author.id == bot.user.id:
         return
-    await post_message_log(bot=bot, messageLog=MessageLog.Delete, channel=bot.message_logs_channel, color=discord.Color.red(), message=message)
+    await post_message_log(bot=bot, messageLog=MessageLog.Delete, channel=await get_log_channel(guild=message.guild, log_channel_type=LogChannelType.MessageLogs), color=discord.Color.red(), message=message)
 
 @bot.event
 async def on_message_edit(old_message: discord.Message, new_message: discord.Message):
@@ -83,7 +80,7 @@ async def on_message_edit(old_message: discord.Message, new_message: discord.Mes
         return
     if old_message.content == new_message.content:
         return
-    await post_message_log(bot=bot, messageLog=MessageLog.Edit, channel=bot.message_logs_channel, color=discord.Color.blue(), message=old_message, new_message=new_message)
+    await post_message_log(bot=bot, messageLog=MessageLog.Edit, channel=await get_log_channel(guild=old_message.guild, log_channel_type=LogChannelType.MessageLogs), color=discord.Color.blue(), message=old_message, new_message=new_message)
 
 @bot.event
 async def on_error(event, *args, **kwargs):

@@ -6,7 +6,7 @@ from discord.ext import commands
 import sys
 
 from constants import BOT_DEVELOPERS, MODMAIL_USER_ID, KILLBOX_DELETE_MESSAGE_SECONDS
-from utils.enums import ActionType, ServerAction, MessageLog, Restriction
+from utils.enums import ActionType, ServerAction, MessageLog, Restriction, LogChannelType
 import utils.database as database
 
 class AppNotBotDeveloper(app_commands.CheckFailure):
@@ -100,7 +100,9 @@ async def check_staff_target(interaction: discord.Interaction, user: discord.Use
             return True
     return False
 
-async def post_honeypot_log(user: discord.User, channel: discord.TextChannel, reason: str):
+async def post_honeypot_log(user: discord.User, reason: str, channel: discord.TextChannel = None):
+    if channel == None:
+        return
     embed = discord.Embed(
         title=f"Member Triggered Honeypot",
         description=f"Reason: {reason}",
@@ -108,7 +110,10 @@ async def post_honeypot_log(user: discord.User, channel: discord.TextChannel, re
     embed.add_field(name="User", value=f"{user.mention} (`{user.name}`) (`{user.id}`)", inline=True) 
     embed.set_thumbnail(url=user.display_avatar.url)
 
-    await channel.send(embeds=[embed])
+    try:
+        await channel.send(embeds=[embed])
+    except discord.Forbidden:
+        pass # we should probably do something more... idk how to tell them
 
 async def handle_honeypot_action(user: discord.User, guild: discord.Guild, reason: str, log_channel: discord.TextChannel): # reason is string because I'm lazy :)
     if is_staff(member=user): # staff are immune
@@ -117,7 +122,9 @@ async def handle_honeypot_action(user: discord.User, guild: discord.Guild, reaso
     await guild.unban(user, reason="Triggered honeypot, unbanning after purging messages")
     await post_honeypot_log(user=user, channel=log_channel, reason=reason)
 
-async def post_action_log(action: ActionType, channel: discord.TextChannel, author: discord.User = None, reason: str = None, target: discord.User = None, color: discord.Color = None):
+async def post_action_log(action: ActionType, channel: discord.TextChannel = None, author: discord.User = None, reason: str = None, target: discord.User = None, color: discord.Color = None):
+    if channel == None:
+        return
     embed = discord.Embed(
         title=f"Member {get_string_by_action_type(action)}",
         description=f"Reason: {reason}",
@@ -130,9 +137,14 @@ async def post_action_log(action: ActionType, channel: discord.TextChannel, auth
     if author is not None:
         embed.add_field(name="Author", value=f"{author.mention} (`{author.name}`) (`{author.id}`)", inline=True)    
 
-    await channel.send(embeds=[embed])
+    try:
+        await channel.send(embeds=[embed])
+    except discord.Forbidden:
+        pass # we should probably do something more... idk how to tell them
 
-async def post_member_update_log(channel: discord.Channel, target: discord.User, updated_field: str, old_value: str, new_value: str, note: str = None, color: discord.Color = None):
+async def post_member_update_log(target: discord.User, updated_field: str, old_value: str, new_value: str, channel: discord.TextChannel = None, note: str = None, color: discord.Color = None):
+    if channel == None:
+        return
     embed = discord.Embed(
         title=f"Member Update",
         description=f"{updated_field} Updated",
@@ -145,9 +157,14 @@ async def post_member_update_log(channel: discord.Channel, target: discord.User,
     embed.add_field(name="Old Value", value=old_value, inline=True)
     embed.add_field(name="New Value", value=new_value, inline=True)
 
-    await channel.send(embeds=[embed])
+    try:
+        await channel.send(embeds=[embed])
+    except discord.Forbidden:
+        pass # we should probably do something more... idk how to tell them
 
-async def post_member_role_update(channel: discord.TextChannel, target: discord.User, updated_role: str, added: bool, note: str = None, color: discord.Color = None):
+async def post_member_role_update(target: discord.User, updated_role: str, added: bool, channel: discord.TextChannel = None, note: str = None, color: discord.Color = None):
+    if channel == None:
+        return
     embed = discord.Embed(
         title=f"Member Role Update",
         description=f"Roles Updated",
@@ -159,9 +176,14 @@ async def post_member_role_update(channel: discord.TextChannel, target: discord.
     field_name = "Roles Added" if added else "Roles Removed"
     embed.add_field(name=field_name, value=updated_role, inline=True)
 
-    await channel.send(embeds=[embed])
+    try:
+        await channel.send(embeds=[embed])
+    except discord.Forbidden:
+        pass # we should probably do something more... idk how to tell them
 
-async def post_server_log(bot: commands.Bot, serverAction: ServerAction, channel: discord.TextChannel, target: discord.User = None, note: str = None, color: discord.Color = None):
+async def post_server_log(bot: commands.Bot, serverAction: ServerAction, channel: discord.TextChannel = None, target: discord.User = None, note: str = None, color: discord.Color = None):
+    if channel == None:
+        return
     embed = discord.Embed(
         title=f"{get_string_by_server_action(serverAction)}",
         description=f"Note: {note}",
@@ -172,9 +194,14 @@ async def post_server_log(bot: commands.Bot, serverAction: ServerAction, channel
         embed.add_field(name="User", value=f"{target.mention} (`{target.name}`) (`{target.id}`)", inline=True) 
         embed.set_thumbnail(url=target.display_avatar.url)
 
-    await channel.send(embeds=[embed])
+    try:
+        await channel.send(embeds=[embed])
+    except discord.Forbidden:
+        pass # we should probably do something more... idk how to tell them
 
-async def post_message_log(bot: commands.Bot, messageLog: MessageLog, channel: discord.TextChannel, color: discord.Color, message: discord.Message, new_message: discord.Message = None, note: str = None):
+async def post_message_log(bot: commands.Bot, messageLog: MessageLog, color: discord.Color, message: discord.Message, new_message: discord.Message = None, note: str = None, channel: discord.TextChannel = None):
+    if channel == None:
+        return
     embed = discord.Embed(
         title=f"{get_string_by_message_log(messageLog)}",
         description=f"Note: {note}",
@@ -197,7 +224,10 @@ async def post_message_log(bot: commands.Bot, messageLog: MessageLog, channel: d
     embed.add_field(name="Message Link", value=f"[Jump to message]({message.jump_url})", inline=True)
     embed.add_field(name="Message ID", value=f"`{message.id}`", inline=True)
 
-    await channel.send(embeds=[embed])
+    try:
+        await channel.send(embeds=[embed])
+    except discord.Forbidden:
+        pass # we should probably do something more... idk how to tell them
 
 async def handle_warn_automated_action(user: discord.User, guild: discord.Guild, warn_count: int):
     if warn_count >= 5:
@@ -209,16 +239,16 @@ async def handle_warn_automated_action(user: discord.User, guild: discord.Guild,
     return
 
 # rare case of using a direct user id, no point of the full User object here
-async def get_user_warning_count(user_id: int):
-    warn_count = (await database.fetch_one(query="SELECT COUNT(*) FROM warnings WHERE user_id = ?", parameters=(user_id,)))[0] or 0
+async def get_user_warning_count(user_id: int, guild_id: int):
+    warn_count = (await database.fetch_one(query="SELECT COUNT(*) FROM warnings WHERE user_id = ? AND guild_id = ?", parameters=(user_id, guild_id,)))[0] or 0
     return warn_count
 
-async def get_all_user_warnings(user_id: int):
-    warnings = await database.fetch_all(query="SELECT * from warnings WHERE user_id = ?", parameters=(user_id,))
+async def get_all_user_warnings(user_id: int, guild_id: int):
+    warnings = await database.fetch_all(query="SELECT * from warnings WHERE user_id = ? AND guild_id = ?", parameters=(user_id, guild_id,))
     return warnings
 
-async def get_latest_user_warning(user_id: int):
-    warning = await database.fetch_one(query="SELECT * FROM warnings WHERE user_id = ? ORDER BY warn_id DESC LIMIT 1", parameters=(user_id,))
+async def get_latest_user_warning(user_id: int, guild_id: int):
+    warning = await database.fetch_one(query="SELECT * FROM warnings WHERE user_id = ? AND guild_id = ? ORDER BY warn_id DESC LIMIT 1", parameters=(user_id, guild_id,))
     return warning
 
 async def does_warn_exist(warn_id: int):
@@ -226,9 +256,17 @@ async def does_warn_exist(warn_id: int):
     return result is not None
 
 # same thing here, we only need the guild id
-async def is_guild_invite_whitelisted(guild_id: int):
-    result = await database.fetch_one(query="SELECT 1 FROM whitelisted_guilds WHERE guild_id = ? LIMIT 1", parameters=(guild_id,))
+async def is_guild_invite_whitelisted(guild_id: int, whitelisted_in_guild_id: int):
+    result = await database.fetch_one(query="SELECT 1 FROM whitelisted_guilds WHERE guild_id = ? AND guild_whitelisted_in = ? LIMIT 1", parameters=(guild_id, whitelisted_in_guild_id))
     return result is not None
 
-async def add_restriction(user: discord.User, restriction_type: Restriction):
+async def get_log_channel_from_database(guild_id: int, log_channel_type: LogChannelType):
+    result = await database.fetch_one(query="SELECT channel_id FROM server_log_channels WHERE guild_id = ? AND log_channel_type = ?", parameters=(guild_id, log_channel_type.value,))
+    return result[0] if result else None 
+
+async def get_honeypot_channel_from_database(guild_id: int):
+    result = await database.fetch_one(query="SELECT honeypot_channel_id FROM honeypot_channels WHERE guild_id = ?", parameters=(guild_id,))
+    return result[0] if result else None 
+
+async def add_restriction(user: discord.User, restriction_type: Restriction, guild_id: int):
     print("empty for now")

@@ -11,6 +11,7 @@ async def init_database():
                 user_id INTEGER NOT NULL,
                 issuer_id INTEGER NOT NULL,
                 reason TEXT NOT NULL,
+                guild_id INTEGER NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )""")
         # guild whitelist table
@@ -19,6 +20,7 @@ async def init_database():
                 guild_whitelist_id INTEGER PRIMARY KEY AUTOINCREMENT,
                 guild_id INTEGER NOT NULL,
                 adder_id INTEGER NOT NULL,
+                guild_whitelisted_in INTEGER NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )""")
         # user restrictions table
@@ -29,7 +31,23 @@ async def init_database():
                 issuer_id INTEGER NOT NULL,
                 reason TEXT,
                 user_id INTEGER NOT NULL,
-                restriction_type INTEGER NOT NULL
+                restriction_type INTEGER NOT NULL,
+                guild_id INTEGER NOT NULL
+            )""")
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS server_log_channels (
+                entry_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                guild_id INTEGER NOT NULL,
+                channel_id INTEGER NOT NULL,
+                log_channel_type INTEGER NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""")
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS honeypot_channels (
+                entry_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                guild_id INTEGER NOT NULL,
+                honeypot_channel_id INTEGER NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )""")
         await db.commit()
         print("Successfully initialized database!")

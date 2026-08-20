@@ -16,8 +16,12 @@ class Extras(commands.Cog):
     async def speak_command(self, interaction: discord.Interaction, message: str, channel: discord.TextChannel = None):
         if channel == None:
             channel = interaction.channel
-        await channel.send(message)
-        await interaction.response.send_message(f"Message sent to channel {channel.mention}!", ephemeral=True) # ideal to respond to the interaction or else we might have issues
+        try:
+            await channel.send(message)
+            await interaction.response.send_message(f"Message sent to channel {channel.mention}!", ephemeral=True) # ideal to respond to the interaction or else we might have issues
+            return
+        except discord.Forbidden:
+            await interaction.response.send_message(f"I do not have permission to send messages in this channel.")
 
 async def setup(bot):
     await bot.add_cog(Extras(bot))

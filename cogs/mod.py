@@ -8,10 +8,11 @@ import re
 from datetime import datetime, timedelta
 
 from utils.helpers import check_staff_target, is_staff, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist
-from utils.enums import ActionType
+from utils.enums import ActionType, LogChannelType
+from utils.channels import get_log_channel, get_honeypot_channel
 import utils.database as database
 
-from constants import MODMAIL_USER_ID, DISCORD_OAUTH2_LINK, DISCORD_USER_URL, MOD_LOGS_CHANNEL_ID, HONEYPOT_ROLE_ID, KILLBOX_CHANNEL_ID
+from constants import MODMAIL_USER_ID, DISCORD_OAUTH2_LINK, DISCORD_USER_URL
 
 # TODO: EMBED HELPER FUNCTION
 
@@ -29,7 +30,7 @@ class Mod(commands.Cog):
         for match in matches:
             try:
                 invite = await self.bot.fetch_invite(match)
-                if not await is_guild_invite_whitelisted(invite.guild.id):
+                if not await is_guild_invite_whitelisted(guild_id=invite.guild.id, whitelisted_in_guild_id=message.guild.id):
                     await message.delete()
                     return
             except discord.NotFound:
@@ -54,15 +55,16 @@ class Mod(commands.Cog):
         await self.check_discord_invites_message(message=message)
 
         # honeypot role
-        role_mentions = message.role_mentions
-        if role_mentions:
-            for role in role_mentions:
-                if role.id == HONEYPOT_ROLE_ID:
-                    await handle_honeypot_action(user=message.author, guild=message.channel.guild, reason="Pinged honeypot role", log_channel=self.bot.mod_logs_channel)
+        #role_mentions = message.role_mentions
+        #if role_mentions:
+        #    for role in role_mentions:
+        #        if role.id == HONEYPOT_ROLE_ID:
+        #            await message.delete()
+        #           await handle_honeypot_action(user=message.author, guild=message.guild, reason="Pinged honeypot role", log_channel=await get_log_channel(guild=message.guild, log_channel_type=LogChannelType.ModLogs))
 
         # honeypot/killbox channel:
-        if message.channel.id == KILLBOX_CHANNEL_ID:
-            await handle_honeypot_action(user=message.author, guild=message.channel.guild, reason="Sent message in honeypot channel", log_channel=self.bot.mod_logs_channel)
+        if message.channel == await get_honeypot_channel(guild=message.guild):
+            await handle_honeypot_action(user=message.author, guild=message.guild, reason="Sent message in honeypot channel", log_channel=await get_log_channel(guild=message.guild, log_channel_type=LogChannelType.ModLogs))
 
     # todo: warn cog
     @app_commands.default_permissions(moderate_members=True)
@@ -73,7 +75,7 @@ class Mod(commands.Cog):
         if await check_staff_target(interaction, user):
             return
         await interaction.response.defer()
-        result = await database.execute(query="INSERT INTO warnings (user_id, issuer_id, reason) VALUES (?, ?, ?)", parameters=(user.id, interaction.user.id, reason,))
+        result = await database.execute(query="INSERT INTO warnings (user_id, issuer_id, reason, guild_id) VALUES (?, ?, ?, ?)", parameters=(user.id, interaction.user.id, reason, interaction.guild.id))
         # todo: explain what each warn does
         if isinstance(user, discord.Member):
             information_embed = discord.Embed(
@@ -92,23 +94,23 @@ class Mod(commands.Cog):
                 await user.send(embeds=[information_embed, appeals_embed])
             except discord.Forbidden:
                 pass # user disabled dms or left
-        warn_count = await get_user_warning_count(user.id)
+        warn_count = await get_user_warning_count(user_id=user.id, guild_id=interaction.guild.id)
         if not skip_action:
             await handle_warn_automated_action(guild=interaction.guild, user=user, warn_count=warn_count)
         await interaction.followup.send(f"{user.mention} ({user.id}) warned. They have been warned {warn_count} times.")
-        warn_id = (await get_latest_user_warning(user.id))[0]
-        await post_action_log(target=user, action=ActionType.Warn, channel=self.bot.mod_logs_channel, color=discord.Color.orange(), author=interaction.user, reason=f"{reason} (**Warn #{warn_count} | ID {warn_id}**)")
+        warn_id = (await get_latest_user_warning(user_id=user.id, guild_id=interaction.guild.id))[0]
+        await post_action_log(target=user, action=ActionType.Warn, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), color=discord.Color.orange(), author=interaction.user, reason=f"{reason} (**Warn #{warn_count} | ID {warn_id}**)")
 
     @app_commands.default_permissions(moderate_members=True)
     @app_commands.guild_only()
     @app_commands.describe(warn_id="The ID of the warn to remove, you can get this via using /warn-list on a user.", reason="Reason for removing the warn")
     @app_commands.command(name="warn-remove", description="Remove a warn from a user")
     async def warn_remove_command(self, interaction: discord.Interaction, warn_id: int, reason: str):
-        if not await does_warn_exist(warn_id):
+        if not await does_warn_exist(warn_id=warn_id):
             raise ValueError(f"Warn {warn_id} does not exist.")
         await database.execute(query="DELETE FROM warnings WHERE warn_id = ?", parameters=(warn_id,))
         await interaction.response.send_message(f"Successfully removed warn {warn_id}!")
-        await post_action_log(action=ActionType.WarnRemove, channel=self.bot.mod_logs_channel, color=discord.Color.orange(), author=interaction.user, reason=f"{reason}\n(**Warn ID: {warn_id}**)")
+        await post_action_log(action=ActionType.WarnRemove, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), color=discord.Color.orange(), author=interaction.user, reason=f"{reason}\n(**Warn ID: {warn_id}**)")
     
     @app_commands.guild_only()
     @app_commands.describe(user="The user whos warns to check, if not yourself.")
@@ -120,15 +122,16 @@ class Mod(commands.Cog):
             await interaction.response.send_message("This commmand can only be used on yourself.", ephemeral=True)
             return
 
-        if await get_user_warning_count(user.id) < 1:
+        if await get_user_warning_count(user_id=user.id, guild_id=interaction.guild.id) < 1:
             await interaction.response.send_message(f"No warns found for user {user.mention} ({user.id}).", ephemeral=ephemeral)
             return
         
         embed = discord.Embed()
         embed.set_author(name=f"Warns for {user} ({user.id})", icon_url=user.display_avatar.url)
-        warnings = await get_all_user_warnings(user.id)
-        for count, (warn_id, user_id, issuer_id, reason, timestamp) in enumerate(warnings, start=1):
+        warnings = await get_all_user_warnings(user_id=user.id, guild_id=interaction.guild.id)
+        for count, (warn_id, user_id, issuer_id, reason, guild_id, timestamp) in enumerate(warnings, start=1):
             value = f"Warning ID: {warn_id}\n"
+            value = f"Guild ID: {guild_id}\n"
             value += f"Reason: {reason}\n"
             if is_staff(member=interaction.user):
                 value += f"Issuer: <@{issuer_id}>"
@@ -143,9 +146,9 @@ class Mod(commands.Cog):
     @app_commands.command(name="whitelist-guild-invite", description="Whitelist invites for a guild/server")
     async def whitelist_guild_invite_command(self, interaction: discord.Interaction, guild_id: str):
         guild_id = int(guild_id)
-        if await is_guild_invite_whitelisted(guild_id):
+        if await is_guild_invite_whitelisted(guild_id=guild_id, whitelisted_in_guild_id=interaction.guild.id):
             raise ValueError("This guild invite is already whitelisted.")
-        await database.execute(query="INSERT INTO whitelisted_guilds (guild_id, adder_id) VALUES (?, ?)", parameters=(guild_id, interaction.user.id,))
+        await database.execute(query="INSERT INTO whitelisted_guilds (guild_id, adder_id, guild_whitelisted_in) VALUES (?, ?, ?)", parameters=(guild_id, interaction.user.id, interaction.guild.id))
         await interaction.response.send_message(f"Successfully whitelisted guild {guild_id} for invites!")
 
     @app_commands.default_permissions(moderate_members=True)
@@ -154,9 +157,9 @@ class Mod(commands.Cog):
     @app_commands.command(name="unwhitelist-guild-invite", description="Unwhitelist invites for a guild/server")
     async def unwhitelist_guild_invite_command(self, interaction: discord.Interaction, guild_id: str):
         guild_id = int(guild_id)
-        if not await is_guild_invite_whitelisted(guild_id):
+        if not await is_guild_invite_whitelisted(guild_id=guild_id, whitelisted_in_guild_id=interaction.guild.id):
             raise ValueError("This guild invite is not whitelisted.")
-        await database.execute(query="DELETE FROM whitelisted_guilds WHERE guild_id = ?", parameters=(guild_id,))
+        await database.execute(query="DELETE FROM whitelisted_guilds WHERE guild_id = ? AND guild_whitelisted_in = ?", parameters=(guild_id, interaction.guild.id))
         await interaction.response.send_message(f"Successfully unwhitelisted guild {guild_id} for invites!")
 
     @app_commands.default_permissions(manage_messages=True)
@@ -261,7 +264,7 @@ class Mod(commands.Cog):
             return
         
         await interaction.response.send_message(f"{user} is now gone.")
-        await post_action_log(author=interaction.user, target=user, action=ActionType.Kick, channel=self.bot.mod_logs_channel, reason=reason, color=discord.Color.red())
+        await post_action_log(author=interaction.user, target=user, action=ActionType.Kick, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
 
     @app_commands.default_permissions(kick_members=True)
     @app_commands.guild_only()
@@ -291,7 +294,7 @@ class Mod(commands.Cog):
             return
         
         await interaction.response.send_message(f"{user} is now gone.")
-        await post_action_log(author=interaction.user, target=user, action=ActionType.ScamKick, channel=self.bot.mod_logs_channel, reason=reason, color=discord.Color.red())
+        await post_action_log(author=interaction.user, target=user, action=ActionType.ScamKick, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
 
     @app_commands.default_permissions(ban_members=True)
     @app_commands.guild_only()
@@ -326,7 +329,7 @@ class Mod(commands.Cog):
             return
         
         await interaction.response.send_message(f"{user} is now banned.")
-        await post_action_log(author=interaction.user, target=user, action=ActionType.Ban, channel=self.bot.mod_logs_channel, reason=reason, color=discord.Color.red())
+        await post_action_log(author=interaction.user, target=user, action=ActionType.Ban, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
 
     @app_commands.default_permissions(ban_members=True)
     @app_commands.guild_only()
@@ -345,7 +348,7 @@ class Mod(commands.Cog):
             return
 
         await interaction.response.send_message(f"{user} ({user.id}) is now unbanned.")
-        await post_action_log(author=interaction.user, target=user, action=ActionType.Unban, channel=self.bot.mod_logs_channel, reason=reason, color=discord.Color(0xFFFFFF))
+        await post_action_log(author=interaction.user, target=user, action=ActionType.Unban, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color(0xFFFFFF))
 
     @app_commands.default_permissions(moderate_members=True)
     @app_commands.guild_only()
@@ -380,7 +383,7 @@ class Mod(commands.Cog):
             pass # user disabled dms or left
         
         await interaction.response.send_message(f"{member} ({member.id}) has been timed out until {timeout_expiration_str}.")
-        await post_action_log(target=member, action=ActionType.Timeout, channel=self.bot.mod_logs_channel, reason=f"{reason}\nUntil:{timeout_expiration_str}", color=discord.Color.red(), author=interaction.user)
+        await post_action_log(target=member, action=ActionType.Timeout, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=f"{reason}\nUntil:{timeout_expiration_str}", color=discord.Color.red(), author=interaction.user)
     
     @app_commands.default_permissions(moderate_members=True)
     @app_commands.guild_only()
@@ -389,7 +392,7 @@ class Mod(commands.Cog):
     async def untimeout_command(self, interaction: discord.Interaction, member: discord.Member, reason: str = None):
         await member.timeout(None) # removes the timeout
         await interaction.response.send_message(f"{member} ({member.id}) is no longer timed out.")
-        await post_action_log(target=member, action=ActionType.TimeoutRemoval, channel=self.bot.mod_logs_channel, reason=f"{reason}", color=discord.Color(0xFFFFFF), author=interaction.user)
+        await post_action_log(target=member, action=ActionType.TimeoutRemoval, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=f"{reason}", color=discord.Color(0xFFFFFF), author=interaction.user)
 
 async def setup(bot):
     await bot.add_cog(Mod(bot))

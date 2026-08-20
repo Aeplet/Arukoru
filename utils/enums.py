@@ -23,3 +23,8 @@ class MessageLog(Enum):
 
 class Restriction(Enum):
     NoHelp = auto()
+
+class LogChannelType(Enum):
+    ModLogs = auto()
+    ServerLogs = auto()
+    MessageLogs = auto()
