@@ -7,12 +7,10 @@ import sys
 import re
 from datetime import datetime, timedelta
 
-from utils.helpers import check_staff_target, is_staff, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist
+from utils.helpers import check_staff_target, is_staff, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist, safe_message_delete, generate_appeal_embed
 from utils.enums import ActionType, LogChannelType
 from utils.channels import get_log_channel, get_honeypot_channel
 import utils.database as database
-
-from constants import MODMAIL_USER_ID, DISCORD_OAUTH2_LINK, DISCORD_USER_URL
 
 # TODO: EMBED HELPER FUNCTION
 
@@ -31,18 +29,18 @@ class Mod(commands.Cog):
             try:
                 invite = await self.bot.fetch_invite(match)
                 if not await is_guild_invite_whitelisted(guild_id=invite.guild.id, whitelisted_in_guild_id=message.guild.id):
-                    await message.delete()
+                    await safe_message_delete(message=message)
                     return
             except discord.NotFound:
                 # it wasn't found who cares
-                await message.delete()
+                await safe_message_delete(message=message)
                 return
             except discord.HTTPException:
-                await message.delete()
+                await safe_message_delete(message=message)
                 return
             except ValueError:
                 # according to discord.py docs: The url contains an event_id, but scheduled_event_id has also been provided.
-                await message.delete()
+                await safe_message_delete(message=message)
                 return
 
     @commands.Cog.listener()
@@ -59,7 +57,7 @@ class Mod(commands.Cog):
         #if role_mentions:
         #    for role in role_mentions:
         #        if role.id == HONEYPOT_ROLE_ID:
-        #            await message.delete()
+        #            await safe_message_delete(message=message)
         #           await handle_honeypot_action(user=message.author, guild=message.guild, reason="Pinged honeypot role", log_channel=await get_log_channel(guild=message.guild, log_channel_type=LogChannelType.ModLogs))
 
         # honeypot/killbox channel:
@@ -83,15 +81,10 @@ class Mod(commands.Cog):
                 description=f"Reason: {reason}",
                 color=discord.Color.red()
             )
-
-            appeals_embed = discord.Embed(
-                title=f"Appeal Information",
-                description=f"You may appeal your warning by DMing <@{MODMAIL_USER_ID}>.",
-                color=discord.Color.dark_red()
-            )
+            appeals_embed = await generate_appeal_embed(guild_id=interaction.guild.id)
 
             try:
-                await user.send(embeds=[information_embed, appeals_embed])
+                await user.send(embeds=[e for e in (information_embed, appeals_embed) if e is not None])
             except discord.Forbidden:
                 pass # user disabled dms or left
         warn_count = await get_user_warning_count(user_id=user.id, guild_id=interaction.guild.id)
@@ -131,7 +124,7 @@ class Mod(commands.Cog):
         warnings = await get_all_user_warnings(user_id=user.id, guild_id=interaction.guild.id)
         for count, (warn_id, user_id, issuer_id, reason, guild_id, timestamp) in enumerate(warnings, start=1):
             value = f"Warning ID: {warn_id}\n"
-            value = f"Guild ID: {guild_id}\n"
+            value += f"Guild ID: {guild_id}\n"
             value += f"Reason: {reason}\n"
             if is_staff(member=interaction.user):
                 value += f"Issuer: <@{issuer_id}>"
@@ -183,8 +176,8 @@ class Mod(commands.Cog):
         try:
             deleted = await channel.purge(limit=amount,
                                           check=check, reason=f"Purged by {interaction.user}")
-        except discord.HTTPException as exc:
-            return await interaction.followup.send(f"Deleting messages failed {exc}", ephemeral=True)
+        except (discord.Forbidden, discord.HTTPException) as exception:
+            return await interaction.followup.send(f"Deleting messages failed {exception}", ephemeral=True)
         if deleted:
             # eventually log here something.
             await interaction.followup.send(f"Successfully deleted {len(deleted)} messages in {channel.mention}!")
@@ -222,18 +215,18 @@ class Mod(commands.Cog):
             if user.guild_avatar:
                 embed.description += f"\n**Guild Profile Picture:** [link]({user.guild_avatar})"
 
-        if guild != None:
-            try:
-                ban = await guild.fetch_ban(user)
-                embed.description += f"\n**Ban reason**: {ban.reason}"
-            except discord.NotFound:
-                pass
+        try:
+            ban = await guild.fetch_ban(user)
+            embed.description += f"\n**Ban reason**: {ban.reason}"
+        except (discord.NotFound, discord.Forbidden):
+            pass
         
         embed.title = f"Info for {'bot' if user.bot else 'user'} {user}"
         embed.set_thumbnail(url=user.display_avatar.url)
         await interaction.response.send_message(embed=embed, ephemeral=ephemeral)
 
     @app_commands.default_permissions(kick_members=True)
+    @app_commands.checks.bot_has_permissions(kick_members=True)
     @app_commands.guild_only()
     @app_commands.describe(user="The user to kick", reason="Reason for the kick", silent="Opt out of notifying the user of the kick via DM")
     @app_commands.command(name="kick", description="Kick a user, and send them a direct message with a reason")
@@ -267,6 +260,7 @@ class Mod(commands.Cog):
         await post_action_log(author=interaction.user, target=user, action=ActionType.Kick, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
 
     @app_commands.default_permissions(kick_members=True)
+    @app_commands.checks.bot_has_permissions(ban_members=True)
     @app_commands.guild_only()
     @app_commands.describe(user="The user to kick")
     @app_commands.command(name="scamkick", description="(ONLY USE FOR SCAMS) Kick a user, and let them know they have been compromised.")
@@ -297,6 +291,7 @@ class Mod(commands.Cog):
         await post_action_log(author=interaction.user, target=user, action=ActionType.ScamKick, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
 
     @app_commands.default_permissions(ban_members=True)
+    @app_commands.checks.bot_has_permissions(ban_members=True)
     @app_commands.guild_only()
     @app_commands.describe(user="The user to ban", reason="Reason for the ban", remove_messages="Number of days of messages to delete (up to 7 max)", silent="Opt out of notifying the user of the ban via DM")
     @app_commands.command(name="ban", description="Ban a user, and send them a direct message with a reason")
@@ -310,15 +305,10 @@ class Mod(commands.Cog):
                 description=f"Reason: {reason}",
                 color=discord.Color.red()
             )
-
-            appeals_embed = discord.Embed(
-                title=f"Appeal Information",
-                description=f"You may appeal your ban by DMing <@{MODMAIL_USER_ID}>. You will have to add it to your Authorized Apps, which you can do by clicking Add App on it, or using [this url]({DISCORD_OAUTH2_LINK}{MODMAIL_USER_ID}). If this shows up as unknown-user, try using this user URL in your browser: {DISCORD_USER_URL}{MODMAIL_USER_ID}.",
-                color=discord.Color.dark_red()
-            )
+            appeals_embed = await generate_appeal_embed(guild_id=interaction.guild.id)
 
             try:
-                await user.send(embeds=[information_embed, appeals_embed])
+                await user.send(embeds=[e for e in (information_embed, appeals_embed) if e is not None])
             except discord.Forbidden:
                 pass # user disabled dms or left
         
@@ -338,8 +328,10 @@ class Mod(commands.Cog):
     async def unban_user_command(self, interaction: discord.Interaction, user: discord.User, reason: str = None):
         try:
             await interaction.guild.fetch_ban(user)
-        except discord.errors.NotFound:
+        except (discord.NotFound):
             return await interaction.response.send_message(f"{user} ({user.id}) is not banned!", ephemeral=True)
+        except (discord.Forbidden):
+            return await interaction.response.send_message(f"I don't have permission to do this.")
         
         try:
             await interaction.guild.unban(user, reason=reason)
@@ -363,22 +355,22 @@ class Mod(commands.Cog):
             
         timeout_expiration = discord.utils.utcnow() + timedelta(seconds=length)
         timeout_expiration_str = format_dt(timeout_expiration)
-        await member.timeout(timeout_expiration, reason=reason)
+
+        try:
+            await member.timeout(timeout_expiration, reason=reason)
+        except discord.Forbidden as forbidden_to_timeout_exception:
+            await interaction.response.send_message(f"Failed to timeout member: {forbidden_to_timeout_exception}", ephemeral=True) 
+            return
 
         information_embed = discord.Embed(
             title=f"You were given a timeout in {interaction.guild.name}!",
             description=f"Reason: {reason}\nUntil:{timeout_expiration_str}",
             color=discord.Color.red()
         )
-
-        appeals_embed = discord.Embed(
-            title=f"Appeal Information",
-            description=f"You may appeal your timeout by DMing <@{MODMAIL_USER_ID}>.",
-            color=discord.Color.dark_red()
-        )
+        appeals_embed = await generate_appeal_embed(guild_id=interaction.guild.id)
         
         try:
-            await member.send(embeds=[information_embed, appeals_embed])
+            await user.send(embeds=[e for e in (information_embed, appeals_embed) if e is not None])
         except discord.Forbidden:
             pass # user disabled dms or left
         
@@ -386,11 +378,16 @@ class Mod(commands.Cog):
         await post_action_log(target=member, action=ActionType.Timeout, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=f"{reason}\nUntil:{timeout_expiration_str}", color=discord.Color.red(), author=interaction.user)
     
     @app_commands.default_permissions(moderate_members=True)
+    @app_commands.checks.bot_has_permissions(moderate_members=True)
     @app_commands.guild_only()
     @app_commands.describe(member="The member to untimeout", reason="The reason for the timeout removal")
     @app_commands.command(name="untimeout", description="Un time out (mute) a member")
     async def untimeout_command(self, interaction: discord.Interaction, member: discord.Member, reason: str = None):
-        await member.timeout(None) # removes the timeout
+        try:
+            await member.timeout(None) # removes the timeout
+        except discord.Forbidden as forbidden_to_untimeout_exception:
+            await interaction.response.send_message(f"Failed to untimeout member: {forbidden_to_untimeout_exception}", ephemeral=True) 
+            return
         await interaction.response.send_message(f"{member} ({member.id}) is no longer timed out.")
         await post_action_log(target=member, action=ActionType.TimeoutRemoval, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=f"{reason}", color=discord.Color(0xFFFFFF), author=interaction.user)
 

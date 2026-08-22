@@ -1,18 +1,8 @@
 # TOKEN
 TOKEN = "Token here"
-
-# USER IDs
 BOT_DEVELOPERS = [] # fill in like ID, ID (82870140068171776, 1469810031229927618)
-MODMAIL_USER_ID = 
-
-# CHANNEL IDs
-BOT_ERROR_CHANNEL_ID = 
-
-# OTHER CONFIGURATION
+DEV_GUILD_ID =
+BOT_ERROR_CHANNEL_ID =
+GUILD_JOIN_LOGS_CHANNEL_ID = 
 KILLBOX_DELETE_MESSAGE_SECONDS = 86400 # 1 day
-
-# DISCORD LINKS (for modmail)
-DISCORD_USER_URL = "https://discord.com/users/"
-DISCORD_OAUTH2_LINK = "https://discord.com/oauth2/authorize?client_id="
-
 DATABASE_FILE_NAME = "bot_database.db"

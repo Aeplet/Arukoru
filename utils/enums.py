@@ -21,6 +21,10 @@ class MessageLog(Enum):
     Delete = auto()
     Edit = auto()
 
+class ServerJoinLog(Enum):
+    Join = auto()
+    Leave = auto()
+
 class Restriction(Enum):
     NoHelp = auto()
 

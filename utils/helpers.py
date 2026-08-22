@@ -5,8 +5,8 @@ from discord.ext import commands
 
 import sys
 
-from constants import BOT_DEVELOPERS, MODMAIL_USER_ID, KILLBOX_DELETE_MESSAGE_SECONDS
-from utils.enums import ActionType, ServerAction, MessageLog, Restriction, LogChannelType
+from constants import BOT_DEVELOPERS, KILLBOX_DELETE_MESSAGE_SECONDS
+from utils.enums import ActionType, ServerAction, MessageLog, Restriction, LogChannelType, ServerJoinLog
 import utils.database as database
 
 class AppNotBotDeveloper(app_commands.CheckFailure):
@@ -80,6 +80,15 @@ def get_string_by_message_log(messageLog: MessageLog) -> str:
         case _:
             return "(Unknown Action Type)"
 
+def get_string_by_server_join_log(serverJoinLog: ServerJoinLog) -> str:
+    match serverJoinLog:
+        case ServerJoinLog.Join:
+            return "Server Joined"
+        case ServerJoinLog.Leave:
+            return "Server Left"
+        case _:
+            return "(Unknown Action Type)"
+
 def is_bot_developer_app_check():
     async def predicate(interaction: discord.Interaction) -> bool:
         if interaction.user.id in BOT_DEVELOPERS:
@@ -118,9 +127,12 @@ async def post_honeypot_log(user: discord.User, reason: str, channel: discord.Te
 async def handle_honeypot_action(user: discord.User, guild: discord.Guild, reason: str, log_channel: discord.TextChannel): # reason is string because I'm lazy :)
     if is_staff(member=user): # staff are immune
         return
-    await guild.ban(user, reason="Triggered honeypot, banning to purge messages", delete_message_seconds=KILLBOX_DELETE_MESSAGE_SECONDS)
-    await guild.unban(user, reason="Triggered honeypot, unbanning after purging messages")
-    await post_honeypot_log(user=user, channel=log_channel, reason=reason)
+    try:
+        await guild.ban(user, reason="Triggered honeypot, banning to purge messages", delete_message_seconds=KILLBOX_DELETE_MESSAGE_SECONDS)
+        await guild.unban(user, reason="Triggered honeypot, unbanning after purging messages")
+        await post_honeypot_log(user=user, channel=log_channel, reason=reason)
+    except discord.Forbidden:
+        pass
 
 async def post_action_log(action: ActionType, channel: discord.TextChannel = None, author: discord.User = None, reason: str = None, target: discord.User = None, color: discord.Color = None):
     if channel == None:
@@ -181,7 +193,7 @@ async def post_member_role_update(target: discord.User, updated_role: str, added
     except discord.Forbidden:
         pass # we should probably do something more... idk how to tell them
 
-async def post_server_log(bot: commands.Bot, serverAction: ServerAction, channel: discord.TextChannel = None, target: discord.User = None, note: str = None, color: discord.Color = None):
+async def post_server_log(serverAction: ServerAction, channel: discord.TextChannel = None, target: discord.User = None, note: str = None, color: discord.Color = None):
     if channel == None:
         return
     embed = discord.Embed(
@@ -199,7 +211,27 @@ async def post_server_log(bot: commands.Bot, serverAction: ServerAction, channel
     except discord.Forbidden:
         pass # we should probably do something more... idk how to tell them
 
-async def post_message_log(bot: commands.Bot, messageLog: MessageLog, color: discord.Color, message: discord.Message, new_message: discord.Message = None, note: str = None, channel: discord.TextChannel = None):
+async def post_server_join_log(serverJoinLog: ServerJoinLog, guild: discord.Guild, channel: discord.TextChannel = None, note: str = None):
+    if channel == None:
+        return
+    
+    embed = discord.Embed(
+        title=f"{get_string_by_server_join_log(serverJoinLog)}",
+        description=f"Note: {note}",
+    )
+
+    embed.add_field(name="Guild", value=f"`{guild.name}` (`{guild.id}`)", inline=False)
+    embed.add_field(name="Member Count", value=str(guild.member_count), inline=False)
+    embed.add_field(name="Owner", value=f"{guild.owner.mention} (`{guild.owner.name}`) (`{guild.owner.id}`)", inline=False)
+    if guild.icon:
+        embed.set_thumbnail(url=guild.icon.url)
+
+    try:
+        await channel.send(embeds=[embed])
+    except discord.Forbidden:
+        pass # we should probably do something more... idk how to tell them
+
+async def post_message_log(messageLog: MessageLog, color: discord.Color, message: discord.Message, new_message: discord.Message = None, note: str = None, channel: discord.TextChannel = None):
     if channel == None:
         return
     embed = discord.Embed(
@@ -229,12 +261,24 @@ async def post_message_log(bot: commands.Bot, messageLog: MessageLog, color: dis
     except discord.Forbidden:
         pass # we should probably do something more... idk how to tell them
 
+async def safe_message_delete(message: discord.Message):
+    try:
+        await message.delete()
+    except discord.Forbidden:
+        pass
+
 async def handle_warn_automated_action(user: discord.User, guild: discord.Guild, warn_count: int):
     if warn_count >= 5:
-        await guild.ban(user, reason="Reached 5+ warnings", delete_message_seconds=0)
+        try:
+            await guild.ban(user, reason="Reached 5+ warnings", delete_message_seconds=0)
+        except discord.Forbidden:
+            pass
         return
     elif warn_count >= 3 and guild.get_member(user.id):
-        await guild.kick(user, reason=f"Reached {warn_count} warnings")
+        try:
+            await guild.kick(user, reason=f"Reached {warn_count} warnings")
+        except discord.Forbidden:
+            pass
         return
     return
 
@@ -260,13 +304,31 @@ async def is_guild_invite_whitelisted(guild_id: int, whitelisted_in_guild_id: in
     result = await database.fetch_one(query="SELECT 1 FROM whitelisted_guilds WHERE guild_id = ? AND guild_whitelisted_in = ? LIMIT 1", parameters=(guild_id, whitelisted_in_guild_id))
     return result is not None
 
+async def is_guild_allowed(guild_id: int):
+    result = await database.fetch_one(query="SELECT 1 FROM allowed_guilds WHERE guild_id = ? LIMIT 1", parameters=(guild_id,))
+    return result is not None
+
 async def get_log_channel_from_database(guild_id: int, log_channel_type: LogChannelType):
     result = await database.fetch_one(query="SELECT channel_id FROM server_log_channels WHERE guild_id = ? AND log_channel_type = ?", parameters=(guild_id, log_channel_type.value,))
     return result[0] if result else None 
 
 async def get_honeypot_channel_from_database(guild_id: int):
     result = await database.fetch_one(query="SELECT honeypot_channel_id FROM honeypot_channels WHERE guild_id = ?", parameters=(guild_id,))
-    return result[0] if result else None 
+    return result[0] if result else None
+
+async def get_appeal_instructions_for_server(guild_id: int):
+    result = await database.fetch_one(query="SELECT appeal_instructions_text FROM appeal_instructions WHERE guild_id = ?", parameters=(guild_id,))
+    return result[0] if result else None
+
+async def generate_appeal_embed(guild_id: int) -> discord.Embed:
+    instructions = await get_appeal_instructions_for_server(guild_id=guild_id)
+    if instructions:
+        return discord.Embed(
+            title=f"Appeal Information",
+            description=instructions,
+            color=discord.Color.dark_red()
+        )
+    return None
 
 async def add_restriction(user: discord.User, restriction_type: Restriction, guild_id: int):
     print("empty for now")

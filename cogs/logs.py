@@ -3,9 +3,10 @@ from discord import app_commands
 from discord.ext import commands
 from discord.utils import format_dt
 
+from constants import GUILD_JOIN_LOGS_CHANNEL_ID, DEV_GUILD_ID
 from utils.channels import get_log_channel
-from utils.enums import ServerAction, ActionType, LogChannelType
-from utils.helpers import post_member_update_log, post_member_role_update, post_server_log, post_action_log
+from utils.enums import ServerAction, ActionType, LogChannelType, ServerJoinLog
+from utils.helpers import post_member_update_log, post_member_role_update, post_server_log, post_action_log, post_server_join_log, is_guild_allowed
 
 class Logs(commands.Cog):
     def __init__(self, bot):
@@ -31,11 +32,32 @@ class Logs(commands.Cog):
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild: discord.Guild, user: discord.User):
-        await post_server_log(bot=self.bot, serverAction=ServerAction.Ban, channel=await get_log_channel(guild=guild, log_channel_type=LogChannelType.ServerLogs), target=user)
+        await post_server_log(serverAction=ServerAction.Ban, channel=await get_log_channel(guild=guild, log_channel_type=LogChannelType.ServerLogs), target=user)
 
     @commands.Cog.listener()
     async def on_member_unban(self, guild: discord.Guild, user: discord.User):
-        await post_server_log(bot=self.bot, serverAction=ServerAction.Unban, channel=await get_log_channel(guild=guild, log_channel_type=LogChannelType.ServerLogs), target=user)
+        await post_server_log(serverAction=ServerAction.Unban, channel=await get_log_channel(guild=guild, log_channel_type=LogChannelType.ServerLogs), target=user)
+
+    @commands.Cog.listener()
+    async def on_guild_join(self, guild: discord.Guild):
+        guild_allowed = await is_guild_allowed(guild_id=guild.id) or guild.id == DEV_GUILD_ID
+        if not guild_allowed:
+            try:
+                await guild.leave()
+            except discord.HTTPException as failed_to_leave_exception:
+                await self.bot.guild_join_logs_channel.send(f"<@82870140068171776> guild join leave failed: {failed_to_leave_exception}")
+        await post_server_join_log(serverJoinLog=ServerJoinLog.Join, guild=guild, channel=self.bot.guild_join_logs_channel)
+
+    # leave guilds we don't know. seperate from the main on_ready.
+    @commands.Cog.listener()
+    async def on_ready(self):
+        for guild in self.bot.guilds:
+            guild_allowed = await is_guild_allowed(guild_id=guild.id) or guild.id == DEV_GUILD_ID
+            if not guild_allowed:
+                try:
+                    await guild.leave()
+                except discord.HTTPException as failed_to_leave_exception:
+                    await self.bot.guild_join_logs_channel.send(f"<@82870140068171776> guild leave failed: {failed_to_leave_exception}")
 
     @commands.Cog.listener()
     async def on_member_update(self, old_member: discord.Member, new_member: discord.Member):

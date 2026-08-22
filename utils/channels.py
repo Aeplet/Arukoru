@@ -17,7 +17,7 @@ async def get_log_channel(guild: discord.Guild, log_channel_type: LogChannelType
             channel = guild.get_channel(channel) or await guild.fetch_channel(channel)
             log_channels[(guild.id, log_channel_type)] = channel
             return channel
-        except discord.NotFound:
+        except (discord.NotFound, discord.Forbidden):
             return None
     return None
 
@@ -32,6 +32,6 @@ async def get_honeypot_channel(guild: discord.Guild) -> discord.TextChannel | No
             channel = guild.get_channel(channel) or await guild.fetch_channel(channel)
             honeypot_channels[guild.id] = channel
             return channel
-        except discord.NotFound:
+        except (discord.NotFound, discord.Forbidden):
             return None
     return None

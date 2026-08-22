@@ -2,14 +2,14 @@ import discord
 from discord import app_commands, __version__ as discordpy_version
 from discord.utils import format_dt
 from discord.ext import commands
-
 import sys
 from subprocess import call
 
-from utils.helpers import is_bot_developer_app_check
+from constants import DEV_GUILD_ID
+from utils.helpers import is_bot_developer_app_check, is_guild_allowed
+import utils.database as database
 
-python_version = sys.version.split()[0]
-
+@app_commands.guilds(discord.Object(id=DEV_GUILD_ID))
 class Dev(commands.GroupCog):
     def __init__(self, bot):
         self.bot = bot
@@ -54,6 +54,7 @@ class Dev(commands.GroupCog):
     
     @app_commands.command(name="env",  description="Information about the environment the bot is running under")
     async def env_command(self, interaction: discord.Interaction):
+        python_version = sys.version.split()[0]
         message = f'''
         Python {python_version}\ndiscord.py {discordpy_version}'''
         await interaction.response.send_message(message, ephemeral=True)
@@ -72,6 +73,38 @@ class Dev(commands.GroupCog):
     async def quit_bot_command(self, interaction: discord.Interaction):
         await interaction.response.send_message("Closing bot...")
         self.bot.close()
+    
+    @is_bot_developer_app_check()
+    @app_commands.describe(guild_id="The ID of the guild/server to allow the bot to be used in")
+    @app_commands.command(name="allow-guild", description="Allow the bot to be used in a guild")
+    async def allow_guild_command(self, interaction: discord.Interaction, guild_id: str):
+        guild_id = int(guild_id)
+        if await is_guild_allowed(guild_id=guild_id):
+            raise ValueError("This guild is already allowed.")
+        await database.execute(query="INSERT INTO allowed_guilds (guild_id) VALUES (?)", parameters=(guild_id,))
+        await interaction.response.send_message(f"Successfully allowed guild {guild_id} for bot usage!")
+
+    @is_bot_developer_app_check()
+    @app_commands.describe(guild_id="The ID of the guild/server to unallow the bot to be used in")
+    @app_commands.command(name="unallow-guild", description="Stop allowing the bot to be used in a guild")
+    async def unallow_guild_command(self, interaction: discord.Interaction, guild_id: str):
+        guild_id = int(guild_id)
+        if not await is_guild_allowed(guild_id=guild_id):
+            raise ValueError("This guild is not allowed.")
+        await database.execute(query="DELETE FROM allowed_guilds WHERE guild_id = ?", parameters=(guild_id,))
+        # also leave the guild if the bot is in it
+        guild = bot.get_guild(guild_id)
+        if guild is None:
+            try:
+                guild = await bot.fetch_guild(guild_id)
+            except discord.NotFound:
+                guild = None
+            except discord.Forbidden:
+                guild = None
+
+        if guild is not None:
+            await guild.leave()
+        await interaction.response.send_message(f"Successfully unallowed guild {guild_id} for bot usage!")
 
 async def setup(bot):
     await bot.add_cog(Dev(bot))

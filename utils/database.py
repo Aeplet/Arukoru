@@ -14,7 +14,7 @@ async def init_database():
                 guild_id INTEGER NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )""")
-        # guild whitelist table
+        # guild invite whitelist table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS whitelisted_guilds (
                 guild_whitelist_id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -34,6 +34,7 @@ async def init_database():
                 restriction_type INTEGER NOT NULL,
                 guild_id INTEGER NOT NULL
             )""")
+        # server logs channels table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS server_log_channels (
                 entry_id INTEGER PRIMARY KEY AUTOINCREMENT, 
@@ -42,11 +43,27 @@ async def init_database():
                 log_channel_type INTEGER NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )""")
+        # honeypot channels table
         await db.execute("""
             CREATE TABLE IF NOT EXISTS honeypot_channels (
                 entry_id INTEGER PRIMARY KEY AUTOINCREMENT, 
                 guild_id INTEGER NOT NULL,
                 honeypot_channel_id INTEGER NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""")
+        # appeal instructions per server
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS appeal_instructions (
+                entry_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                guild_id INTEGER NOT NULL,
+                appeal_instructions_text TEXT,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""")
+        # allowed guilds (guilds the bot can be used in)
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS allowed_guilds (
+                entry_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                guild_id INTEGER NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )""")
         await db.commit()
