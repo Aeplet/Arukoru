@@ -6,6 +6,7 @@ from datetime import datetime
 
 import discord
 from discord.app_commands.errors import CommandInvokeError, TransformerError, CheckFailure
+from discord.app_commands.transformers import MemberTransformer
 from discord.ext import commands
 from discord.utils import format_dt
 
@@ -127,8 +128,15 @@ async def on_app_command_error(interaction: discord.Interaction, error):
         await interaction.response.send_message(f"I don't have the required permissions to run this command: `{perms}`.", ephemeral=True)
         return
 
+    if isinstance(error, TransformerError):
+        if isinstance(error.transformer, MemberTransformer):
+            await interaction.response.send_message(f"{error.value} ({error.value.id}) is not in the server.", ephemeral=True)
+        else:
+            await interaction.response.send_message(str(error), ephemeral=True)
+        return
+            
 
-    if isinstance(error, (AppNotBotDeveloper, AppNotStaffCheck, ValueError, TransformerError, CheckFailure)):
+    if isinstance(error, (AppNotBotDeveloper, AppNotStaffCheck, ValueError, CheckFailure)):
         await interaction.response.send_message(str(error), ephemeral=True)
         return
 

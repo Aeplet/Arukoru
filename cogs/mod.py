@@ -46,7 +46,7 @@ class Mod(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         # for moderational on_message, ignore DMs or messages from other bots
-        if message.guild is None or message.author.bot:
+        if message.guild is None or message.author == message.guild.me:
             return
 
         # discord invite check
@@ -156,6 +156,7 @@ class Mod(commands.Cog):
         await interaction.response.send_message(f"Successfully unwhitelisted guild {guild_id} for invites!")
 
     @app_commands.default_permissions(manage_messages=True)
+    @app_commands.checks.bot_has_permissions(manage_messages=True)
     @app_commands.guild_only()
     @app_commands.describe(amount="The amount of messages to purge", channel="The channel to purge messages in, if not the current one")
     @app_commands.command(name="purge", description="Purge a certain amount of the latest messages from a channel. Pinned messages are ignored.")
@@ -265,10 +266,11 @@ class Mod(commands.Cog):
     @app_commands.describe(user="The user to kick")
     @app_commands.command(name="scamkick", description="(ONLY USE FOR SCAMS) Kick a user, and let them know they have been compromised.")
     async def scamkick_user_command(self, interaction: discord.Interaction, user: discord.Member): # a kick needs them to be in the server, so we use discord.Member instead of discord.User
+        await interaction.response.defer() # it's been proven that this can take longer than 3 seconds, so this is needed.
         if await check_staff_target(interaction, user):
             return
         if not isinstance(user, discord.Member):
-            await interaction.response.send_message(f"{user.mention} ({user.id}) is not in the server!", ephemeral=True)
+            await interaction.followup.send(f"{user.mention} ({user.id}) is not in the server!", ephemeral=True)
             return
         reason = "Sending or linking scams or spam content, and/or compromised account."
         information_embed = discord.Embed(
@@ -284,10 +286,10 @@ class Mod(commands.Cog):
             await interaction.guild.ban(user, reason=reason, delete_message_days=1)
             await interaction.guild.unban(user)
         except discord.errors.Forbidden as forbidden_to_kick_exception:
-            await interaction.response.send_message(f"Failed to kick member: {forbidden_to_kick_exception}", ephemeral=True)
+            await interaction.followup.send(f"Failed to kick member: {forbidden_to_kick_exception}")
             return
         
-        await interaction.response.send_message(f"{user} is now gone.")
+        await interaction.followup.send(f"{user} is now gone.")
         await post_action_log(author=interaction.user, target=user, action=ActionType.ScamKick, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
 
     @app_commands.default_permissions(ban_members=True)
@@ -322,6 +324,7 @@ class Mod(commands.Cog):
         await post_action_log(author=interaction.user, target=user, action=ActionType.Ban, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
 
     @app_commands.default_permissions(ban_members=True)
+    @app_commands.checks.bot_has_permissions(ban_members=True)
     @app_commands.guild_only()
     @app_commands.describe(user="The user to unban", reason="Reason to unban the user")
     @app_commands.command(name="unban", description="Unban a user")
@@ -343,6 +346,7 @@ class Mod(commands.Cog):
         await post_action_log(author=interaction.user, target=user, action=ActionType.Unban, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color(0xFFFFFF))
 
     @app_commands.default_permissions(moderate_members=True)
+    @app_commands.checks.bot_has_permissions(moderate_members=True)
     @app_commands.guild_only()
     @app_commands.describe(member="The member to timeout", length="Amount of time to time them out for (format: #d#h#m#s)", reason="The reason for the timeout")
     @app_commands.command(name="timeout", description="Time out (mute) a member")
@@ -370,9 +374,9 @@ class Mod(commands.Cog):
         appeals_embed = await generate_appeal_embed(guild_id=interaction.guild.id)
         
         try:
-            await user.send(embeds=[e for e in (information_embed, appeals_embed) if e is not None])
+            await member.send(embeds=[e for e in (information_embed, appeals_embed) if e is not None])
         except discord.Forbidden:
-            pass # user disabled dms or left
+            pass # member disabled dms or left
         
         await interaction.response.send_message(f"{member} ({member.id}) has been timed out until {timeout_expiration_str}.")
         await post_action_log(target=member, action=ActionType.Timeout, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=f"{reason}\nUntil:{timeout_expiration_str}", color=discord.Color.red(), author=interaction.user)
