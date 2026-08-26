@@ -264,10 +264,17 @@ async def post_message_log(messageLog: MessageLog, color: discord.Color, message
 async def safe_message_delete(message: discord.Message):
     if not message.channel.permissions_for(message.guild.me).manage_messages:
         return
-        
     try:
         await message.delete()
     except discord.Forbidden:
+        pass
+
+# discord.Member because if we only have a discord.User object
+async def send_dm_message(member: discord.Member, guild: discord.Guild, embeds: list[discord.Embed] = None):
+    try:
+        member = guild.get_member(member.id) or await guild.fetch_member(member.id)
+        await member.send(embeds=[e for e in (embeds or []) if e]) # looks weird lol
+    except (discord.NotFound, discord.Forbidden):
         pass
 
 async def handle_warn_automated_action(user: discord.User, guild: discord.Guild, warn_count: int):
@@ -276,11 +283,15 @@ async def handle_warn_automated_action(user: discord.User, guild: discord.Guild,
             await guild.ban(user, reason="Reached 5+ warnings", delete_message_seconds=0)
         except discord.Forbidden:
             pass
+        except discord.NotFound:
+            pass
         return
-    elif warn_count >= 3 and guild.get_member(user.id):
+    elif warn_count >= 3:
         try:
             await guild.kick(user, reason=f"Reached {warn_count} warnings")
         except discord.Forbidden:
+            pass
+        except discord.NotFound:
             pass
         return
     return

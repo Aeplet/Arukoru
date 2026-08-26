@@ -7,7 +7,7 @@ import sys
 import re
 from datetime import datetime, timedelta
 
-from utils.helpers import check_staff_target, is_staff, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist, safe_message_delete, generate_appeal_embed
+from utils.helpers import check_staff_target, is_staff, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist, safe_message_delete, generate_appeal_embed, send_dm_message
 from utils.enums import ActionType, LogChannelType
 from utils.channels import get_log_channel, get_honeypot_channel
 import utils.database as database
@@ -82,11 +82,7 @@ class Mod(commands.Cog):
                 color=discord.Color.red()
             )
             appeals_embed = await generate_appeal_embed(guild_id=interaction.guild.id)
-
-            try:
-                await user.send(embeds=[e for e in (information_embed, appeals_embed) if e is not None])
-            except discord.Forbidden:
-                pass # user disabled dms or left
+            await send_dm_message(member=user, guild=interaction.guild, embeds=[information_embed, appeals_embed])
         warn_count = await get_user_warning_count(user_id=user.id, guild_id=interaction.guild.id)
         if not skip_action:
             await handle_warn_automated_action(guild=interaction.guild, user=user, warn_count=warn_count)
@@ -245,12 +241,7 @@ class Mod(commands.Cog):
                 description=f"Reason: {reason}\n\nYou are able to rejoin the server, however please make sure to read the rules before participating again.",
                 color=discord.Color.red()
             )
-
-            try:
-                await user.send(embeds=[information_embed])
-            except discord.Forbidden:
-                pass # user disabled dms or left
-        
+            await send_dm_message(member=user, guild=interaction.guild, embeds=[information_embed])
         try:
             await interaction.guild.kick(user, reason=reason)
         except discord.errors.Forbidden as forbidden_to_kick_exception:
@@ -278,10 +269,7 @@ class Mod(commands.Cog):
             description=f"You were kicked because your account has been compromised and has sent spam or scams in the server.\nYou are able to rejoin the server, but please secure your account, reinstall your operating system, and consider adding two-factor authentication.",
             color=discord.Color.red()
         )
-        try:
-            await user.send(embeds=[information_embed])
-        except discord.Forbidden:
-            pass # user disabled dms or left
+        await send_dm_message(member=user, guild=interaction.guild, embeds=[information_embed])
         try:
             await interaction.guild.ban(user, reason=reason, delete_message_days=1)
             await interaction.guild.unban(user)
@@ -308,11 +296,7 @@ class Mod(commands.Cog):
                 color=discord.Color.red()
             )
             appeals_embed = await generate_appeal_embed(guild_id=interaction.guild.id)
-
-            try:
-                await user.send(embeds=[e for e in (information_embed, appeals_embed) if e is not None])
-            except discord.Forbidden:
-                pass # user disabled dms or left
+            await send_dm_message(member=user, guild=interaction.guild, embeds=[information_embed, appeals_embed])
         
         try:
             await interaction.guild.ban(user, reason=reason, delete_message_days=remove_messages)
@@ -372,12 +356,7 @@ class Mod(commands.Cog):
             color=discord.Color.red()
         )
         appeals_embed = await generate_appeal_embed(guild_id=interaction.guild.id)
-        
-        try:
-            await member.send(embeds=[e for e in (information_embed, appeals_embed) if e is not None])
-        except discord.Forbidden:
-            pass # member disabled dms or left
-        
+        await send_dm_message(member=member, guild=interaction.guild, embeds=[information_embed, appeals_embed])
         await interaction.response.send_message(f"{member} ({member.id}) has been timed out until {timeout_expiration_str}.")
         await post_action_log(target=member, action=ActionType.Timeout, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=f"{reason}\nUntil:{timeout_expiration_str}", color=discord.Color.red(), author=interaction.user)
     
