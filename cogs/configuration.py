@@ -7,6 +7,7 @@ from utils.enums import LogChannelType
 from utils.helpers import get_log_channel_from_database
 from utils.channels import log_channels, honeypot_channels
 
+@app_commands.guild_only()
 @app_commands.default_permissions(administrator=True)
 class Configuration(commands.GroupCog):
     def __init__(self, bot):
@@ -23,8 +24,6 @@ class Configuration(commands.GroupCog):
             if cached_channel.id == channel.id:
                 del honeypot_channels[key]
         
-
-    @app_commands.guild_only()
     @app_commands.describe(log_channel_type="Which log channel to set the ID for", channel="The channel to set the log channel to")
     @app_commands.command(name="set-log-channel", description="Update log channels for this server")
     async def set_log_channel_command(self, interaction: discord.Interaction, log_channel_type: LogChannelType, channel: discord.TextChannel):
@@ -40,7 +39,6 @@ class Configuration(commands.GroupCog):
             return
         await interaction.response.send_message(f"Failed to update {log_channel_type.name} to {channel.mention}", ephemeral=True)
 
-    @app_commands.guild_only()
     @app_commands.describe(channel="Channel to set the honeypot channel to")
     @app_commands.command(name="set-honeypot-channel", description="Set the server's honeypot channel")
     async def set_honeypot_channel_command(self, interaction: discord.Interaction, channel: discord.TextChannel):
@@ -55,7 +53,6 @@ class Configuration(commands.GroupCog):
             return
         await interaction.response.send_message(f"Failed to update honeypot channel to {channel.mention}", ephemeral=True)
 
-    @app_commands.guild_only()
     @app_commands.describe(instructions="New appeal instructions for this server")
     @app_commands.command(name="set-appeal-instructions", description="Update the instructions sent to appeal in ban DMs for this server")
     async def set_appeal_instructions_command(self, interaction: discord.Interaction, instructions: str):
