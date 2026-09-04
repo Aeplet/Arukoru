@@ -116,7 +116,7 @@ async def post_honeypot_log(user: discord.User, reason: str, channel: discord.Te
         title=f"Member Triggered Honeypot",
         description=f"Reason: {reason}",
     )
-    embed.add_field(name="User", value=f"{user.mention} (`{user.name}`) (`{user.id}`)", inline=True) 
+    embed.add_field(name="User", value=f"{user.mention} (`{user}`) (`{user.id}`)", inline=True) 
     embed.set_thumbnail(url=user.display_avatar.url)
 
     try:
@@ -144,10 +144,10 @@ async def post_action_log(action: ActionType, channel: discord.TextChannel = Non
     )
 
     if target is not None:
-        embed.add_field(name="User", value=f"{target.mention} (`{target.name}`) (`{target.id}`)", inline=True) 
+        embed.add_field(name="User", value=f"{target.mention} (`{target}`) (`{target.id}`)", inline=True) 
         embed.set_thumbnail(url=target.display_avatar.url)
     if author is not None:
-        embed.add_field(name="Author", value=f"{author.mention} (`{author.name}`) (`{author.id}`)", inline=True)    
+        embed.add_field(name="Author", value=f"{author.mention} (`{author}`) (`{author.id}`)", inline=True)    
 
     try:
         await channel.send(embeds=[embed])
@@ -163,7 +163,7 @@ async def post_member_update_log(target: discord.User, updated_field: str, old_v
         color=color
     )
 
-    embed.add_field(name="User", value=f"{target.mention} (`{target.name}`) (`{target.id}`)", inline=True) 
+    embed.add_field(name="User", value=f"{target.mention} (`{target}`) (`{target.id}`)", inline=True) 
     embed.set_thumbnail(url=target.display_avatar.url)
 
     embed.add_field(name="Old Value", value=old_value, inline=True)
@@ -183,7 +183,7 @@ async def post_member_role_update(target: discord.User, updated_role: str, added
         color=color
     )
 
-    embed.add_field(name="User", value=f"{target.mention} (`{target.name}`) (`{target.id}`)", inline=True) 
+    embed.add_field(name="User", value=f"{target.mention} (`{target}`) (`{target.id}`)", inline=True) 
     embed.set_thumbnail(url=target.display_avatar.url)
     field_name = "Roles Added" if added else "Roles Removed"
     embed.add_field(name=field_name, value=updated_role, inline=True)
@@ -203,7 +203,7 @@ async def post_server_log(serverAction: ServerAction, channel: discord.TextChann
     )
     
     if target is not None:
-        embed.add_field(name="User", value=f"{target.mention} (`{target.name}`) (`{target.id}`)", inline=True) 
+        embed.add_field(name="User", value=f"{target.mention} (`{target}`) (`{target.id}`)", inline=True) 
         embed.set_thumbnail(url=target.display_avatar.url)
 
     try:
@@ -222,7 +222,7 @@ async def post_server_join_log(serverJoinLog: ServerJoinLog, guild: discord.Guil
 
     embed.add_field(name="Guild", value=f"`{guild.name}` (`{guild.id}`)", inline=False)
     embed.add_field(name="Member Count", value=str(guild.member_count), inline=False)
-    embed.add_field(name="Owner", value=f"{guild.owner.mention} (`{guild.owner.name}`) (`{guild.owner.id}`)", inline=False)
+    embed.add_field(name="Owner", value=f"{guild.owner.mention} (`{guild.owner}`) (`{guild.owner.id}`)", inline=False)
     if guild.icon:
         embed.set_thumbnail(url=guild.icon.url)
 
@@ -242,7 +242,7 @@ async def post_message_log(messageLog: MessageLog, color: discord.Color, message
 
     author = message.author
 
-    embed.add_field(name="Author", value=f"{author.mention} (`{author.name}`) (`{author.id}`)", inline=False)
+    embed.add_field(name="Author", value=f"{author.mention} (`{author}`) (`{author.id}`)", inline=False)
     
     if not new_message:
         embed.add_field(name="Message Content", value=f"{message.content}", inline=False)
