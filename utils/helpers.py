@@ -269,8 +269,10 @@ async def safe_message_delete(message: discord.Message):
     except discord.Forbidden:
         pass
 
-# discord.Member because if we only have a discord.User object
+# discord.Member because if we only have a discord.User object, we might run into some issues
 async def send_dm_message(member: discord.Member, guild: discord.Guild, embeds: list[discord.Embed] = None):
+    if member.bot:
+        return
     try:
         member = guild.get_member(member.id) or await guild.fetch_member(member.id)
         await member.send(embeds=[e for e in (embeds or []) if e]) # looks weird lol
