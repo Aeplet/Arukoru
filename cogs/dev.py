@@ -93,10 +93,10 @@ class Dev(commands.GroupCog):
             raise ValueError("This guild is not allowed.")
         await database.execute(query="DELETE FROM allowed_guilds WHERE guild_id = ?", parameters=(guild_id,))
         # also leave the guild if the bot is in it
-        guild = bot.get_guild(guild_id)
+        guild = self.bot.get_guild(guild_id)
         if guild is None:
             try:
-                guild = await bot.fetch_guild(guild_id)
+                guild = await self.bot.fetch_guild(guild_id)
             except discord.NotFound:
                 guild = None
             except discord.Forbidden:
