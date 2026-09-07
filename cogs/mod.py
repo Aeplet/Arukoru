@@ -65,7 +65,7 @@ class Mod(commands.Cog):
             await handle_honeypot_action(user=message.author, guild=message.guild, reason="Sent message in honeypot channel", log_channel=await get_log_channel(guild=message.guild, log_channel_type=LogChannelType.ModLogs))
 
     @commands.Cog.listener()
-    async def on_message_edit(old_message: discord.Message, new_message: discord.Message):
+    async def on_message_edit(self, old_message: discord.Message, new_message: discord.Message):
         if old_message.guild is None or old_message.author == self.bot:
             return
         # discord invite check
