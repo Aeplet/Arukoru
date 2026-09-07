@@ -262,6 +262,8 @@ async def post_message_log(messageLog: MessageLog, color: discord.Color, message
         pass # we should probably do something more... idk how to tell them
 
 async def safe_message_delete(message: discord.Message):
+    if message.guild is None:
+        return # safety
     if not message.channel.permissions_for(message.guild.me).manage_messages:
         return
     try:
