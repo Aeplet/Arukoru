@@ -198,7 +198,7 @@ async def post_server_log(serverAction: ServerAction, channel: discord.TextChann
         return
     embed = discord.Embed(
         title=f"{get_string_by_server_action(serverAction)}",
-        description=f"Note: {note}",
+        description=f"{note}",
         color=color
     )
     
