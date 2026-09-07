@@ -1,0 +1,15 @@
+Arukoru Privacy Policy
+
+Information collected:
+- User IDs for warnings
+- User IDs for user restrictions in servers
+- Channel IDs for log channel IDs for servers
+- Appeal instructions for servers
+- Server IDs for whitelisted invites
+- Server IDs for allowed servers the bot can be used in
+- Honeypot channel IDs
+
+This information is collected for moderation purposes and functionality purposes.
+This data is NOT sold or shared with anyone.
+
+Server owners may request deletion of data by contacting Aep.
