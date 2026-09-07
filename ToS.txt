@@ -1,0 +1,14 @@
+Arukoru Terms of Service
+Last updated: September 7th, 2026
+
+By adding Arukoru to your server, you agree to be bound by these terms and conditions. If you do not agree, please do not add the bot to your server, or if you already have, remove the bot from your server.
+
+1. You agree not to use the Bot for any illegal, harmful, or unauthorized purposes. Prohibited actions include, but are not limited to:
+* Attempting to exploit, hack, or disrupt the bot's operation. Any exploits should be reported to the developer of Arukoru (Aep).
+* Using the Bot to bypass Discord’s automated safety features, spam users, or violate the Discord Community Guidelines.
+
+2. Termination
+We reserve the right to terminate or restrict your access to the Bot (or block entire Discord servers) at our sole discretion, without prior notice, if we believe you have violated these terms.
+
+3. Warranty disclaimer
+The Bot is provided on an "AS IS" and "AS AVAILABLE" basis. The developers make no warranties that the Bot will be uninterrupted, error-free, or entirely secure. We are not liable for any data loss, server disruptions, or moderation issues caused by the Bot.
