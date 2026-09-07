@@ -69,7 +69,7 @@ class Mod(commands.Cog):
         if old_message.guild is None or old_message.author == self.bot:
             return
         # discord invite check
-        await self.check_discord_invites_message(new_message=message)
+        await self.check_discord_invites_message(message=new_message)
 
     # todo: warn cog
     @app_commands.default_permissions(moderate_members=True)
