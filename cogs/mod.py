@@ -46,7 +46,7 @@ class Mod(commands.Cog):
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
         # for moderational on_message, ignore DMs or messages from other bots
-        if message.guild is None or message.author == message.guild.me:
+        if message.guild is None or message.author == self.bot:
             return
 
         # discord invite check
@@ -66,7 +66,7 @@ class Mod(commands.Cog):
 
     @commands.Cog.listener()
     async def on_message_edit(old_message: discord.Message, new_message: discord.Message):
-        if old_message.guild is None or old_message.author == old_message.guild.me:
+        if old_message.guild is None or old_message.author == self.bot:
             return
         # discord invite check
         await self.check_discord_invites_message(message=message)
