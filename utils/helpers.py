@@ -113,10 +113,10 @@ async def post_honeypot_log(user: discord.User, reason: str, channel: discord.Te
     if channel == None:
         return
     embed = discord.Embed(
-        title=f"Member Triggered Honeypot",
-        description=f"Reason: {reason}",
+        title=f"Member Triggered Honeypot"
     )
     embed.add_field(name="User", value=f"{user.mention} (`{user}`) (`{user.id}`)", inline=True) 
+    embed.add_field(name="Reason", value=reason)
     embed.set_thumbnail(url=user.display_avatar.url)
 
     try:
@@ -139,7 +139,6 @@ async def post_action_log(action: ActionType, channel: discord.TextChannel = Non
         return
     embed = discord.Embed(
         title=f"Member {get_string_by_action_type(action)}",
-        description=f"Reason: {reason}",
         color=color
     )
 
@@ -149,6 +148,8 @@ async def post_action_log(action: ActionType, channel: discord.TextChannel = Non
     if author is not None:
         embed.add_field(name="Author", value=f"{author.mention} (`{author}`) (`{author.id}`)", inline=True)    
 
+    embed.add_field(name="Reason", value=reason)
+    
     try:
         await channel.send(embeds=[embed])
     except discord.Forbidden:
@@ -198,13 +199,14 @@ async def post_server_log(serverAction: ServerAction, channel: discord.TextChann
         return
     embed = discord.Embed(
         title=f"{get_string_by_server_action(serverAction)}",
-        description=f"{note}",
         color=color
     )
     
     if target is not None:
         embed.add_field(name="User", value=f"{target.mention} (`{target}`) (`{target.id}`)", inline=True) 
         embed.set_thumbnail(url=target.display_avatar.url)
+
+    embed.add_field(name="Note", value=note)
 
     try:
         await channel.send(embeds=[embed])
@@ -216,13 +218,13 @@ async def post_server_join_log(serverJoinLog: ServerJoinLog, guild: discord.Guil
         return
     
     embed = discord.Embed(
-        title=f"{get_string_by_server_join_log(serverJoinLog)}",
-        description=f"Note: {note}",
+        title=f"{get_string_by_server_join_log(serverJoinLog)}"
     )
 
     embed.add_field(name="Guild", value=f"`{guild.name}` (`{guild.id}`)", inline=False)
     embed.add_field(name="Member Count", value=str(guild.member_count), inline=False)
     embed.add_field(name="Owner", value=f"{guild.owner.mention} (`{guild.owner}`) (`{guild.owner.id}`)", inline=False)
+    embed.add_field(name="Note", value=note)
     if guild.icon:
         embed.set_thumbnail(url=guild.icon.url)
 
@@ -236,7 +238,6 @@ async def post_message_log(messageLog: MessageLog, color: discord.Color, message
         return
     embed = discord.Embed(
         title=f"{get_string_by_message_log(messageLog)}",
-        description=f"Note: {note}",
         color=color
     )
 
@@ -255,7 +256,6 @@ async def post_message_log(messageLog: MessageLog, color: discord.Color, message
     embed.add_field(name="Message Channel", value=message.channel.mention, inline=True)
     embed.add_field(name="Message Link", value=f"[Jump to message]({message.jump_url})", inline=True)
     embed.add_field(name="Message ID", value=f"`{message.id}`", inline=True)
-
     try:
         await channel.send(embeds=[embed])
     except discord.Forbidden:
