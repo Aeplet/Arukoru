@@ -9,6 +9,12 @@ class Extras(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
 
+    @app_commands.guild_only()
+    @app_commands.command(name="member-count", description="Get the member count for the server")
+    async def member_count_command(self, interaction: discord.Interaction):
+        guild = interaction.guild # timesave
+        await interaction.response.send_message(f"{guild.name} has {guild.member_count:,} members!", ephemeral=True)
+    
     @app_commands.default_permissions(moderate_members=True)
     @app_commands.guild_only()
     @app_commands.describe(channel="The channel to send the message in, if not the current channge", message="The message to send")
