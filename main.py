@@ -80,6 +80,19 @@ async def on_message_delete(message: discord.Message):
     await post_message_log(messageLog=MessageLog.Delete, channel=await get_log_channel(guild=message.guild, log_channel_type=LogChannelType.MessageLogs), color=discord.Color.red(), message=message)
 
 @bot.event
+async def on_bulk_message_delete(messages: list[discord.Message]):
+    if not messages:
+        return
+    channel = await get_log_channel(guild=messages[0].guild, log_channel_type=LogChannelType.MessageLogs)
+    if channel is None:
+        return
+    for message in messages:
+        if isinstance(message.channel, discord.DMChannel):
+            continue
+        if message.author.id == bot.user.id:
+            continue
+        await post_message_log(messageLog=MessageLog.Delete, channel=channel, color=discord.Color.red(), message=message)
+        
 async def on_message_edit(old_message: discord.Message, new_message: discord.Message):
     if isinstance(old_message.channel, discord.DMChannel):
         return
