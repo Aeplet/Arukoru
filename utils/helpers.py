@@ -109,6 +109,13 @@ async def check_staff_target(interaction: discord.Interaction, user: discord.Use
             return True
     return False
 
+async def check_top_role_target(interaction: discord.Interaction, author: discord.User, target: discord.User):
+    if isinstance(target, discord.Member) and isinstance(author, discord.Member):
+        if author.top_role <= target.top_role:
+            await interaction.response.send_message(f"I cannot perform this action, as {target.mention} is higher or equal to you in the role hierarchy.")
+            return True
+    return False
+
 async def post_honeypot_log(user: discord.User, reason: str, channel: discord.TextChannel = None):
     if channel == None:
         return
