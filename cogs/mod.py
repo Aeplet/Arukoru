@@ -311,7 +311,7 @@ class Mod(commands.Cog):
             await interaction.response.send_message(f"Failed to ban member: {forbidden_to_ban_exception}", ephemeral=True)
             return
         
-        await interaction.response.send_message(f"{user} is now banned.")
+        await interaction.response.send_message(f"{user} ({user.id}) is now banned.")
         await post_action_log(author=interaction.user, target=user, action=ActionType.Ban, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
 
     @app_commands.default_permissions(ban_members=True)
