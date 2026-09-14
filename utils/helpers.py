@@ -111,6 +111,11 @@ async def check_staff_target(interaction: discord.Interaction, user: discord.Use
 
 async def check_top_role_target(interaction: discord.Interaction, author: discord.User, target: discord.User):
     if isinstance(target, discord.Member) and isinstance(author, discord.Member):
+        if author.id == interaction.guild.owner.id:
+            return False # allow owners to be immune
+        if target.id == interaction.guild.owner.id:
+            await interaction.response.send_message(f"I can't perform this action, as {target.mention} owns the server.")
+            return True
         if author.top_role <= target.top_role:
             await interaction.response.send_message(f"I cannot perform this action, as {target.mention} is higher or equal to you in the role hierarchy.")
             return True
