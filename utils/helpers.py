@@ -113,6 +113,7 @@ async def check_staff_target(interaction: discord.Interaction, user: discord.Use
     if isinstance(user, discord.Member):
         if user.guild_permissions.moderate_members:
             await helper_respond_to_interaction(interaction=interaction, message="You cannot perform this action on this user.", ephemeral=True)
+            return True
     return False
 
 async def check_top_role_target(interaction: discord.Interaction, author: discord.User, target: discord.User):
