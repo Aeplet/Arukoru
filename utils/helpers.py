@@ -102,11 +102,17 @@ def is_staff(member: discord.Member):
             return True
     return False
 
+# this should *only* be used when we use  something like check_staff_target or check_top_role_target (responding in a different function)
+async def helper_respond_to_interaction(interaction: discord.Interaction, message: str, ephemeral: bool = False):
+    if interaction.response.is_done():
+        await interaction.followup.send(message, ephemeral=ephemeral)
+    else:
+        await interaction.response.send_message(message, ephemeral=ephemeral)
+
 async def check_staff_target(interaction: discord.Interaction, user: discord.User):
     if isinstance(user, discord.Member):
         if user.guild_permissions.moderate_members:
-            await interaction.response.send_message("You cannot perform this action on this user.", ephemeral=True)
-            return True
+            await helper_respond_to_interaction(interaction=interaction, message="You cannot perform this action on this user.", ephemeral=True)
     return False
 
 async def check_top_role_target(interaction: discord.Interaction, author: discord.User, target: discord.User):
@@ -114,10 +120,10 @@ async def check_top_role_target(interaction: discord.Interaction, author: discor
         if author.id == interaction.guild.owner.id:
             return False # allow owners to be immune
         if target.id == interaction.guild.owner.id:
-            await interaction.response.send_message(f"I can't perform this action, as {target.mention} owns the server.")
+            await helper_respond_to_interaction(interaction=interaction, message=f"I can't perform this action, as {target.mention} owns the server.")
             return True
         if author.top_role <= target.top_role:
-            await interaction.response.send_message(f"I cannot perform this action, as {target.mention} is higher or equal to you in the role hierarchy.")
+            await helper_respond_to_interaction(interaction=interaction, f"I cannot perform this action, as {target.mention} is higher or equal to you in the role hierarchy.")
             return True
     return False
 
@@ -294,6 +300,7 @@ async def send_dm_message(member: discord.Member, guild: discord.Guild, embeds: 
         pass
 
 async def handle_warn_automated_action(user: discord.User, guild: discord.Guild, warn_count: int):
+    return # temporarily disable this feature, because it is not configurable yet. to re-enable, just comment out the return
     if warn_count >= 5:
         try:
             await guild.ban(user, reason="Reached 5+ warnings", delete_message_seconds=0)
@@ -359,6 +366,3 @@ async def generate_appeal_embed(guild_id: int) -> discord.Embed:
             color=discord.Color.dark_red()
         )
     return None
-
-async def add_restriction(user: discord.User, restriction_type: Restriction, guild_id: int):
-    print("empty for now")
