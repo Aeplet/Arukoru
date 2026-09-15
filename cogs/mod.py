@@ -7,7 +7,7 @@ import sys
 import re
 from datetime import datetime, timedelta
 
-from utils.helpers import check_staff_target, is_staff, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist, safe_message_delete, generate_appeal_embed, send_dm_message
+from utils.helpers import check_staff_target, is_staff, check_top_role_target, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist, safe_message_delete, generate_appeal_embed, send_dm_message
 from utils.enums import ActionType, LogChannelType
 from utils.channels import get_log_channel, get_honeypot_channel
 import utils.database as database
@@ -77,7 +77,7 @@ class Mod(commands.Cog):
     @app_commands.describe(user="The user to warn", reason="The reason to warn the user", skip_action="If the automated action that the warn should apply should be skipped")
     @app_commands.command(name="warn", description="Warn a user. Notifys them via DMs (if possible)")
     async def warn_member_command(self, interaction: discord.Interaction, user: discord.User, reason: str, skip_action: bool = False):
-        if await check_staff_target(interaction, user):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
             return
         await interaction.response.defer()
         result = await database.execute(query="INSERT INTO warnings (user_id, issuer_id, reason, guild_id) VALUES (?, ?, ?, ?)", parameters=(user.id, interaction.user.id, reason, interaction.guild.id))
@@ -235,7 +235,7 @@ class Mod(commands.Cog):
     @app_commands.describe(user="The user to kick", reason="Reason for the kick", silent="Opt out of notifying the user of the kick via DM")
     @app_commands.command(name="kick", description="Kick a user, and send them a direct message with a reason")
     async def kick_user_command(self, interaction: discord.Interaction, user: discord.Member, reason: str = None, silent: bool = False): # a kick needs them to be in the server, so we use discord.Member instead of discord.User
-        if await check_staff_target(interaction, user):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
             return
         
         if not isinstance(user, discord.Member):
@@ -265,7 +265,7 @@ class Mod(commands.Cog):
     @app_commands.command(name="scamkick", description="(ONLY USE FOR SCAMS) Kick a user, and let them know they have been compromised.")
     async def scamkick_user_command(self, interaction: discord.Interaction, user: discord.Member): # a kick needs them to be in the server, so we use discord.Member instead of discord.User
         await interaction.response.defer() # it's been proven that this can take longer than 3 seconds, so this is needed.
-        if await check_staff_target(interaction, user):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
             return
         if not isinstance(user, discord.Member):
             await interaction.followup.send(f"{user.mention} ({user.id}) is not in the server!", ephemeral=True)
@@ -293,7 +293,7 @@ class Mod(commands.Cog):
     @app_commands.describe(user="The user to ban", reason="Reason for the ban", remove_messages="Number of days of messages to delete (up to 7 max)", silent="Opt out of notifying the user of the ban via DM")
     @app_commands.command(name="ban", description="Ban a user, and send them a direct message with a reason")
     async def ban_user_command(self, interaction: discord.Interaction, user: discord.User, reason: str = None, remove_messages: app_commands.Range[int, 0, 7] = 0, silent: bool = False):
-        if await check_staff_target(interaction, user):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
             return
 
         if isinstance(user, discord.Member) and not silent:
@@ -345,7 +345,7 @@ class Mod(commands.Cog):
         if length >= 2419200:
             await interaction.response.send_message("Timeouts cannot be longer than 28 days!", ephemeral=True)
             return
-        if await check_staff_target(interaction=interaction, user=member):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
             return
             
         timeout_expiration = discord.utils.utcnow() + timedelta(seconds=length)
@@ -373,6 +373,8 @@ class Mod(commands.Cog):
     @app_commands.describe(member="The member to untimeout", reason="The reason for the timeout removal")
     @app_commands.command(name="untimeout", description="Un time out (mute) a member")
     async def untimeout_command(self, interaction: discord.Interaction, member: discord.Member, reason: str = None):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user):
+            return
         try:
             await member.timeout(None) # removes the timeout
         except discord.Forbidden as forbidden_to_untimeout_exception:
