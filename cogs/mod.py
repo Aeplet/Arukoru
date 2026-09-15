@@ -345,7 +345,7 @@ class Mod(commands.Cog):
         if length >= 2419200:
             await interaction.response.send_message("Timeouts cannot be longer than 28 days!", ephemeral=True)
             return
-        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=member) or await check_staff_target(interaction, user):
             return
             
         timeout_expiration = discord.utils.utcnow() + timedelta(seconds=length)
@@ -373,7 +373,7 @@ class Mod(commands.Cog):
     @app_commands.describe(member="The member to untimeout", reason="The reason for the timeout removal")
     @app_commands.command(name="untimeout", description="Un time out (mute) a member")
     async def untimeout_command(self, interaction: discord.Interaction, member: discord.Member, reason: str = None):
-        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=member):
             return
         try:
             await member.timeout(None) # removes the timeout
