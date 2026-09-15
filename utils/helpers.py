@@ -123,7 +123,7 @@ async def check_top_role_target(interaction: discord.Interaction, author: discor
             await helper_respond_to_interaction(interaction=interaction, message=f"I can't perform this action, as {target.mention} owns the server.")
             return True
         if author.top_role <= target.top_role:
-            await helper_respond_to_interaction(interaction=interaction, f"I cannot perform this action, as {target.mention} is higher or equal to you in the role hierarchy.")
+            await helper_respond_to_interaction(interaction=interaction, message=f"I cannot perform this action, as {target.mention} is higher or equal to you in the role hierarchy.")
             return True
     return False
 
