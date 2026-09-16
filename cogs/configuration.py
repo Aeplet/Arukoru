@@ -26,7 +26,7 @@ class Configuration(commands.GroupCog):
         
     @app_commands.describe(log_channel_type="Which log channel to set the ID for", channel="The channel to set the log channel to")
     @app_commands.command(name="set-log-channel", description="Update log channels for this server")
-    async def set_log_channel_command(self, interaction: discord.Interaction, log_channel_type: LogChannelType, channel: app_commands.AppCommandChannel):
+    async def set_log_channel_command(self, interaction: discord.Interaction, log_channel_type: LogChannelType, channel: discord.TextChannel | discord.VoiceChannel):
         # delete and remake it. best option here
         await database.execute(query="DELETE FROM server_log_channels WHERE guild_id = ? AND log_channel_type = ?", parameters=(interaction.guild.id, log_channel_type.value,))
         await database.execute(query="INSERT INTO server_log_channels (guild_id, channel_id, log_channel_type) VALUES (?, ?, ?)", parameters=(interaction.guild.id, channel.id, log_channel_type.value,))
@@ -41,7 +41,7 @@ class Configuration(commands.GroupCog):
 
     @app_commands.describe(channel="Channel to set the honeypot channel to")
     @app_commands.command(name="set-honeypot-channel", description="Set the server's honeypot channel")
-    async def set_honeypot_channel_command(self, interaction: discord.Interaction, channel: app_commands.AppCommandChannel):
+    async def set_honeypot_channel_command(self, interaction: discord.Interaction, channel: discord.TextChannel | discord.VoiceChannel):
         await database.execute(query="DELETE FROM honeypot_channels WHERE guild_id = ?", parameters=(interaction.guild.id,))
         await database.execute(query="INSERT INTO honeypot_channels (guild_id, honeypot_channel_id) VALUES (?, ?)", parameters=(interaction.guild.id, channel.id,))
         honeypot_channels[interaction.guild.id] = channel
