@@ -27,7 +27,7 @@ class Extras(commands.Cog):
             await interaction.response.send_message(f"Message sent to channel {channel.mention}!", ephemeral=True) # ideal to respond to the interaction or else we might have issues
             return
         except discord.Forbidden:
-            await interaction.response.send_message(f"I do not have permission to send messages in this channel.")
+            await interaction.response.send_message(f"I do not have permission to send messages in this channel.", ephemeral=True)
 
 async def setup(bot):
     await bot.add_cog(Extras(bot))
