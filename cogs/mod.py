@@ -345,7 +345,7 @@ class Mod(commands.Cog):
         if length >= 2419200:
             await interaction.response.send_message("Timeouts cannot be longer than 28 days!", ephemeral=True)
             return
-        if await check_top_role_target(interaction=interaction, author=interaction.user, target=member) or await check_staff_target(interaction, user):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=member) or await check_staff_target(interaction, member):
             return
             
         timeout_expiration = discord.utils.utcnow() + timedelta(seconds=length)
