@@ -2,6 +2,8 @@
 import asyncio
 import traceback
 import io
+import sys
+import argparse
 from datetime import datetime
 
 import discord
@@ -33,9 +35,13 @@ class Bot(commands.Bot):
             print(f"Failed to fetch guild join/leave logs channel. Guild join/leaves will not be logged. Information: {failed_to_fetch_guild_join_logs_channel_exception}")
             self.guild_join_logs_channel = None
 
-        await self.tree.sync() # global commands
-        await self.tree.sync(guild=discord.Object(id=DEV_GUILD_ID)) # dev guild only commands
-        print("Synced app commands successfully!")
+        # if either --nosync or --no-sync is passed to the command line while running this file, slash commands won't be synced on startup.
+        if "--nosync" in sys.argv or "--no-sync" in sys.argv:
+            print("Skipped syncing app commands, as per explicit request.")
+        else:
+            await self.tree.sync() # global commands
+            await self.tree.sync(guild=discord.Object(id=DEV_GUILD_ID)) # dev guild only commands
+            print("Synced app commands successfully!")
 
 
 bot = Bot(command_prefix=commands.when_mentioned, intents=intents, allowed_mentions=allowed_mentions)
