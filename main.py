@@ -92,7 +92,8 @@ async def on_bulk_message_delete(messages: list[discord.Message]):
         if message.author.id == bot.user.id:
             continue
         await post_message_log(messageLog=MessageLog.Delete, channel=channel, color=discord.Color.red(), message=message)
-        
+
+@bot.event
 async def on_message_edit(old_message: discord.Message, new_message: discord.Message):
     if isinstance(old_message.channel, discord.DMChannel):
         return
