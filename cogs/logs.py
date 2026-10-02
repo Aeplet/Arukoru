@@ -67,7 +67,7 @@ class Logs(commands.Cog):
         if old_member.pending != new_member.pending:
             await post_member_update_log(channel=await get_log_channel(guild=guild, log_channel_type=LogChannelType.ServerLogs), target=old_member, updated_field="Pending Verification", old_value=old_member.pending, new_value=new_member.pending)
         if old_member.nick != new_member.nick:
-            await post_member_update_log(channel=await get_log_channel(guild=guild, log_channel_type=LogChannelType.ServerLogs), target=old_member, updated_field="Nickname", old_value=old_member.display_name, new_value=new_member.display_name)
+            await post_member_update_log(channel=await get_log_channel(guild=guild, log_channel_type=LogChannelType.ServerLogs), target=old_member, updated_field="Nickname", old_value=old_member.nick, new_value=new_member.nick)
         if old_member.premium_since != new_member.premium_since:
             await post_member_update_log(channel=await get_log_channel(guild=guild, log_channel_type=LogChannelType.ServerLogs), target=old_member, updated_field="Boosting Date", old_value=old_member.premium_since, new_value=new_member.premium_since)
         if old_member.roles != new_member.roles:
