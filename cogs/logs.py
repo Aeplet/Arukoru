@@ -3,7 +3,7 @@ from discord import app_commands
 from discord.ext import commands
 from discord.utils import format_dt
 
-from constants import GUILD_JOIN_LOGS_CHANNEL_ID, DEV_GUILD_ID
+from constants import GUILD_JOIN_LOGS_CHANNEL_ID, DEV_GUILD_ID, DEBUG_SOCKET_LOGS_ENABLED
 from utils.channels import get_log_channel
 from utils.enums import ServerAction, ActionType, LogChannelType, ServerJoinLog
 from utils.helpers import post_member_update_log, post_member_role_update, post_server_log, post_action_log, post_server_join_log, is_guild_allowed
@@ -29,6 +29,11 @@ class Logs(commands.Cog):
                 case _:
                     raise ValueError(f"Unknown audit log entry type {entry}")
             await post_action_log(action=action, channel=await get_log_channel(guild=entry.guild, log_channel_type=LogChannelType.ModLogs), color=discord.Color.red(), target=target, author=entry.user, reason=entry.reason)
+
+    if DEBUG_SOCKET_LOGS_ENABLED:
+        @commands.Cog.listener()
+        async def on_socket_raw_receive(self, msg):
+            print(f"Raw Socket Event Received: {msg}")
 
     @commands.Cog.listener()
     async def on_member_ban(self, guild: discord.Guild, user: discord.User):
