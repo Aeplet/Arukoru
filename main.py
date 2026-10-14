@@ -12,7 +12,7 @@ from discord.app_commands.transformers import MemberTransformer
 from discord.ext import commands
 from discord.utils import format_dt
 
-from constants import TOKEN, BOT_ERROR_CHANNEL_ID, GUILD_JOIN_LOGS_CHANNEL_ID, DEV_GUILD_ID
+from constants import TOKEN, BOT_ERROR_CHANNEL_ID, GUILD_JOIN_LOGS_CHANNEL_ID, DEV_GUILD_ID, DEBUG_SOCKET_LOGS_ENABLED
 from utils.enums import ServerAction, MessageLog, LogChannelType
 from utils.helpers import AppNotBotDeveloper, AppNotStaffCheck, post_message_log, post_server_log
 from utils.channels import get_log_channel
@@ -44,7 +44,7 @@ class Bot(commands.Bot):
             print("Synced app commands successfully!")
 
 
-bot = Bot(command_prefix=commands.when_mentioned, intents=intents, allowed_mentions=allowed_mentions)
+bot = Bot(command_prefix=commands.when_mentioned, intents=intents, allowed_mentions=allowed_mentions, enable_debug_events=DEBUG_SOCKET_LOGS_ENABLED)
 
 cogs_list = [
     "cogs.extras",
