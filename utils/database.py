@@ -66,6 +66,14 @@ async def init_database():
                 guild_id INTEGER NOT NULL,
                 timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
             )""")
+        await db.execute("""
+            CREATE TABLE IF NOT EXISTS guild_restrictions (
+                restriction_type_id INTEGER PRIMARY KEY AUTOINCREMENT, 
+                guild_id INTEGER NOT NULL,
+                restriction_name TEXT NOT NULL,
+                restriction_role_id INTEGER NOT NULL,
+                timestamp DATETIME DEFAULT CURRENT_TIMESTAMP
+            )""")
         await db.commit()
         print("Successfully initialized database!")
 
