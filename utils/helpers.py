@@ -1,13 +1,28 @@
 import discord
 from discord import app_commands
 from discord.utils import format_dt
-from discord.ext import commands
-
-import sys
+from dataclasses import dataclass
 
 from constants import BOT_DEVELOPERS, KILLBOX_DELETE_MESSAGE_SECONDS
-from utils.enums import ActionType, ServerAction, MessageLog, Restriction, LogChannelType, ServerJoinLog
+from utils.enums import ActionType, ServerAction, MessageLog, LogChannelType, ServerJoinLog
 import utils.database as database
+
+@dataclass
+class GuildRestriction():
+    restriction_type_id: int
+    guild_id: int
+    restriction_name: str
+    restriction_role_id: int
+
+@dataclass
+class UserRestriction():
+    restriction_id: int # the type of GuildRestriction
+    issuer_id: int # mod who applied the restriction
+    reason: str | None
+    user_id: int
+    restriction_type: int # value of GuildRestriction
+    guild_id: int
+
 
 class AppNotBotDeveloper(app_commands.CheckFailure):
     message: str
@@ -53,6 +68,14 @@ def get_string_by_action_type(actionType: ActionType) -> str:
             return "Warned"
         case ActionType.WarnRemove:
             return "Warn Removed"
+        case ActionType.AddedRestrictionToGuild:
+            return "Added Restriction To Server"
+        case ActionType.RemovedRestrictionFromGuild:
+            return "Removed Restriction From Server"
+        case ActionType.RemoveRestrictionFromUser:
+            return "Removed Restriction From User"
+        case ActionType.ApplyRestrictionToUser:
+            return "Applied Restriction to User"
         case _:
             return "(Unknown Action Type)"
 
@@ -357,6 +380,65 @@ async def get_honeypot_channel_from_database(guild_id: int):
 async def get_appeal_instructions_for_server(guild_id: int):
     result = await database.fetch_one(query="SELECT appeal_instructions_text FROM appeal_instructions WHERE guild_id = ?", parameters=(guild_id,))
     return result[0] if result else None
+
+# restriction helper functions
+async def check_guild_restriction_exists_by_name(name: str, guild_id: int):
+    result = await database.fetch_one(query="SELECT 1 FROM guild_restrictions WHERE guild_id = ? AND restriction_name = ? LIMIT 1", parameters=(guild_id, name,))
+    return result is not None
+
+async def check_guild_restriction_exists_by_role(role_id: int):
+    result = await database.fetch_one(query="SELECT 1 FROM guild_restrictions WHERE restriction_role_id = ?", parameters=(role_id,))
+    return result is not None
+
+async def get_guild_restriction_type_id_by_name(name: str, guild_id: int):
+    result = await database.fetch_one(query="SELECT restriction_type_id FROM guild_restrictions WHERE guild_id = ? AND restriction_name = ?", parameters=(guild_id, name,))
+    return result[0] if result else None
+
+# needs a full guild object here to use get_role/fetch_role
+async def get_role_for_restriction_type_by_name(name: str, guild: discord.Guild) -> discord.Role | None:
+    result = await database.fetch_one(query="SELECT restriction_role_id FROM guild_restrictions WHERE guild_id = ? AND restriction_name = ?", parameters=(guild.id, name,))
+    if result[0] is not None:
+        try:
+            role = guild.get_role(result[0]) or await guild.fetch_role(result[0])
+            if role:
+                return role
+        # log these for now at least
+        except discord.Forbidden as e:
+            print(str(e))
+        except discord.HTTPException:
+            print(str(e))
+    else:
+        return None
+
+# needs a full guild object here to use get_role/fetch_role
+# long function name damn
+async def get_role_for_restriction_type_by_restriction_type_id(restriction_type_id: int, guild: discord.Guild) -> discord.Role | None:
+    result = await database.fetch_one(query="SELECT restriction_role_id FROM guild_restrictions WHERE guild_id = ? AND restriction_type_id = ?", parameters=(guild.id, restriction_type_id,))
+    if result[0] is not None:
+        try:
+            role = guild.get_role(result[0]) or await guild.fetch_role(result[0])
+            if role:
+                return role
+        # log these for now at least
+        except discord.Forbidden as e:
+            print(str(e))
+        except discord.HTTPException:
+            print(str(e))
+    else:
+        return None
+
+async def user_has_restriction(guild_id: int, restriction_type_id: int, user_id: int) -> bool:
+    result = await database.fetch_one(query="SELECT 1 FROM user_restrictions WHERE guild_id = ? AND restriction_type = ? AND user_id = ? LIMIT 1", parameters=(guild_id, restriction_type_id, user_id,))
+    return result is not None
+
+async def get_all_user_restrictions_for_guild(user_id: int, guild_id: int):
+    restrictions = await database.fetch_all(query="SELECT * from user_restrictions WHERE user_id = ? AND guild_id = ?", parameters=(user_id, guild_id,))
+    return restrictions
+
+# 25 limit is safe I think
+async def get_all_restriction_names_for_guild(guild_id: int):
+    restrictions = await database.fetch_all(query="SELECT restriction_name FROM guild_restrictions WHERE guild_id = ? LIMIT 25", parameters=(guild_id,))
+    return [row[0] for row in restrictions] # extract the name from the tuple, leaving this comment here so I know why i do it like this.
 
 async def generate_appeal_embed(guild_id: int) -> discord.Embed:
     instructions = await get_appeal_instructions_for_server(guild_id=guild_id)

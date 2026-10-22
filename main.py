@@ -51,7 +51,8 @@ cogs_list = [
     "cogs.mod",
     "cogs.dev",
     "cogs.logs",
-    "cogs.configuration"
+    "cogs.configuration",
+    "cogs.restriction"
 ]
 
 async def load_extensions():
@@ -157,7 +158,10 @@ async def on_app_command_error(interaction: discord.Interaction, error):
             
 
     if isinstance(error, (AppNotBotDeveloper, AppNotStaffCheck, ValueError, CheckFailure)):
-        await interaction.response.send_message(str(error), ephemeral=True)
+        if interaction.response.is_done():
+            await interaction.followup.send(str(error), ephemeral=True)
+        else:
+            await interaction.response.send_message(str(error), ephemeral=True)
         return
 
     tb = "".join(traceback.format_exception(type(error), error, error.__traceback__))

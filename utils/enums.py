@@ -9,6 +9,10 @@ class ActionType(Enum):
     ScamKick = auto()
     Warn = auto()
     WarnRemove = auto()
+    AddedRestrictionToGuild = auto()
+    RemovedRestrictionFromGuild = auto()
+    ApplyRestrictionToUser = auto()
+    RemoveRestrictionFromUser = auto()
 
 class ServerAction(Enum):
     Join = auto()
@@ -24,9 +28,6 @@ class MessageLog(Enum):
 class ServerJoinLog(Enum):
     Join = auto()
     Leave = auto()
-
-class Restriction(Enum):
-    NoHelp = auto()
 
 class LogChannelType(Enum):
     ModLogs = auto()
