@@ -7,7 +7,7 @@ import sys
 import re
 from datetime import datetime, timedelta
 
-from utils.helpers import check_staff_target, is_staff, check_top_role_target, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist, safe_message_delete, generate_appeal_embed, send_dm_message
+from utils.helpers import check_staff_target, is_staff, check_top_role_target, post_action_log, DurationTransformer, handle_honeypot_action, get_user_warning_count, get_guild_id_from_warn_id, get_all_user_warnings, is_guild_invite_whitelisted, handle_warn_automated_action, get_latest_user_warning, does_warn_exist, safe_message_delete, generate_appeal_embed, send_dm_message
 from utils.enums import ActionType, LogChannelType
 from utils.channels import get_log_channel, get_honeypot_channel
 import utils.database as database
@@ -104,6 +104,9 @@ class Mod(commands.Cog):
     async def warn_remove_command(self, interaction: discord.Interaction, warn_id: int, reason: str):
         if not await does_warn_exist(warn_id=warn_id):
             raise ValueError(f"Warn {warn_id} does not exist.")
+        warn_guild_id = await get_guild_id_from_warn_id(warn_id=warn_id)
+        if warn_guild_id != interaction.guild.id:
+            raise ValueError("This warn does not belong to this server.")
         await database.execute(query="DELETE FROM warnings WHERE warn_id = ?", parameters=(warn_id,))
         await interaction.response.send_message(f"Successfully removed warn {warn_id}!")
         await post_action_log(action=ActionType.WarnRemove, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), color=discord.Color.orange(), author=interaction.user, reason=f"{reason}\n(**Warn ID: {warn_id}**)")

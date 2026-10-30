@@ -360,6 +360,10 @@ async def does_warn_exist(warn_id: int):
     result = await database.fetch_one(query="SELECT 1 FROM warnings WHERE warn_id = ? LIMIT 1", parameters=(warn_id,))
     return result is not None
 
+async def get_guild_id_from_warn_id(warn_id: int):
+    result = await database.fetch_one(query="SELECT guild_id FROM warnings WHERE warn_id = ?", parameters=(warn_id,))
+    return result[0] if result else None
+
 # same thing here, we only need the guild id
 async def is_guild_invite_whitelisted(guild_id: int, whitelisted_in_guild_id: int):
     result = await database.fetch_one(query="SELECT 1 FROM whitelisted_guilds WHERE guild_id = ? AND guild_whitelisted_in = ? LIMIT 1", parameters=(guild_id, whitelisted_in_guild_id))
