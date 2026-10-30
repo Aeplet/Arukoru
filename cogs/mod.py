@@ -3,7 +3,6 @@ from discord import app_commands
 from discord.utils import format_dt
 from discord.ext import commands
 
-import sys
 import re
 from datetime import datetime, timedelta
 
@@ -13,10 +12,21 @@ from utils.channels import get_log_channel, get_honeypot_channel
 import utils.database as database
 
 # TODO: EMBED HELPER FUNCTION
+# TODO: MOVE MODALS INTO THEIR OWN CLASSES.
 
 class Mod(commands.Cog):
     def __init__(self, bot):
         self.bot = bot
+        # context menu commands, starting with ban
+        self.ban_context_menu_command = app_commands.ContextMenu(name="Ban User", callback=self.ban_user_context_menu_command_callback)
+        self.ban_context_menu_command.default_permissions = discord.Permissions(ban_members=True)
+        self.ban_context_menu_command.guild_only = True
+        self.bot.tree.add_command(self.ban_context_menu_command)
+        # kick
+        self.kick_context_menu_command = app_commands.ContextMenu(name="Kick User", callback=self.kick_user_context_menu_command_callback)
+        self.kick_context_menu_command.default_permissions = discord.Permissions(kick_members=True)
+        self.kick_context_menu_command.guild_only = True
+        self.bot.tree.add_command(self.kick_context_menu_command)
 
     async def check_discord_invites_message(self, message: discord.Message):
         # todo: some message log bs for this. #message-logs already logs these naturally so for now it's fine?
@@ -42,6 +52,52 @@ class Mod(commands.Cog):
                 # according to discord.py docs: The url contains an event_id, but scheduled_event_id has also been provided.
                 await safe_message_delete(message=message)
                 return
+
+    # ban command execution, now it's own function to be shared between context menu and slash
+    async def execute_ban_command(self, interaction: discord.Interaction, user: discord.User, 
+            reason: str = None,  remove_messages: app_commands.Range[int, 0, 7] = 0, 
+            silent: bool = False, ephemeral_response: bool = False):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
+            return
+        if isinstance(user, discord.Member) and not silent:
+            information_embed = discord.Embed(
+                title=f"You were banned from {interaction.guild.name}.",
+                description=f"Reason: {reason}",
+                color=discord.Color.red()
+            )
+            appeals_embed = await generate_appeal_embed(guild_id=interaction.guild.id)
+            await send_dm_message(member=user, guild=interaction.guild, embeds=[information_embed, appeals_embed])
+        try:
+            await interaction.guild.ban(user, reason=reason, delete_message_days=remove_messages)
+        except discord.errors.Forbidden as forbidden_to_ban_exception:
+            await interaction.response.send_message(f"Failed to ban member: {forbidden_to_ban_exception}", ephemeral=True)
+            return
+        await interaction.response.send_message(f"{user} ({user.id}) is now banned.", ephemeral=ephemeral_response)
+        await post_action_log(author=interaction.user, target=user, action=ActionType.Ban, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
+
+    async def execute_kick_command(self, interaction: discord.Interaction, user: discord.Member, reason: str = None, silent: bool = False, ephemeral_response: bool = False):
+        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
+            return
+                
+        if not isinstance(user, discord.Member):
+            await interaction.response.send_message(f"{user.mention} ({user.id}) is not in the server!", ephemeral=True)
+            return
+                
+        if not silent:
+            information_embed = discord.Embed(
+                title=f"You were kicked from {interaction.guild.name}.",
+                description=f"Reason: {reason}\n\nYou are able to rejoin the server, however please make sure to read the rules before participating again.",
+                color=discord.Color.red()
+            )
+            await send_dm_message(member=user, guild=interaction.guild, embeds=[information_embed])
+        try:
+            await interaction.guild.kick(user, reason=reason)
+        except discord.Forbidden as forbidden_to_kick_exception:
+            await interaction.response.send_message(f"Failed to kick member: {forbidden_to_kick_exception}", ephemeral=True)
+            return
+                
+        await interaction.response.send_message(f"{user} is now gone.", ephemeral=ephemeral_response)
+        await post_action_log(author=interaction.user, target=user, action=ActionType.Kick, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
 
     @commands.Cog.listener()
     async def on_message(self, message: discord.Message):
@@ -234,29 +290,31 @@ class Mod(commands.Cog):
     @app_commands.guild_only()
     @app_commands.describe(user="The user to kick", reason="Reason for the kick", silent="Opt out of notifying the user of the kick via DM")
     @app_commands.command(name="kick", description="Kick a user, and send them a direct message with a reason")
-    async def kick_user_command(self, interaction: discord.Interaction, user: discord.Member, reason: str = None, silent: bool = False): # a kick needs them to be in the server, so we use discord.Member instead of discord.User
-        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
-            return
-        
-        if not isinstance(user, discord.Member):
-            await interaction.response.send_message(f"{user.mention} ({user.id}) is not in the server!", ephemeral=True)
-            return
-        
-        if not silent:
-            information_embed = discord.Embed(
-                title=f"You were kicked from {interaction.guild.name}.",
-                description=f"Reason: {reason}\n\nYou are able to rejoin the server, however please make sure to read the rules before participating again.",
-                color=discord.Color.red()
+    async def kick_user_slash_command(self, interaction: discord.Interaction, user: discord.Member, reason: str = None, silent: bool = False): # a kick needs them to be in the server, so we use discord.Member instead of discord.User
+        await self.execute_kick_command(interaction=interaction, user=user, reason=reason, silent=silent, ephemeral_response=False)
+
+    @app_commands.checks.bot_has_permissions(kick_members=True)
+    async def kick_user_context_menu_command_callback(self, interaction: discord.Interaction, user: discord.Member):
+        class KickModal(discord.ui.Modal, title="Kick User"):
+            reason = discord.ui.Label(
+                text="Reason for Kick", 
+                component=discord.ui.TextInput(
+                    style=discord.TextStyle.long, 
+                    placeholder="Enter reason here (leave blank if none)", 
+                    max_length=512
+                ),
             )
-            await send_dm_message(member=user, guild=interaction.guild, embeds=[information_embed])
-        try:
-            await interaction.guild.kick(user, reason=reason)
-        except discord.errors.Forbidden as forbidden_to_kick_exception:
-            await interaction.response.send_message(f"Failed to kick member: {forbidden_to_kick_exception}", ephemeral=True)
-            return
-        
-        await interaction.response.send_message(f"{user} is now gone.")
-        await post_action_log(author=interaction.user, target=user, action=ActionType.Kick, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
+            notify_via_dm = discord.ui.Label(
+                text="Notify user via DMs (if possible)",
+                component=discord.ui.Checkbox(
+                    default=True,
+                    custom_id="notify_user_via_dm_kick_checkbox_1",
+                )
+            )
+            async def on_submit(modal_self, modal_interaction: discord.Interaction):
+                silent = not modal_self.notify_via_dm.component.value # need opposite
+                await self.execute_kick_command(user=user, reason=modal_self.reason.component.value, silent=silent, ephemeral_response=True, interaction=modal_interaction)
+        await interaction.response.send_modal(KickModal())
 
     @app_commands.default_permissions(kick_members=True)
     @app_commands.checks.bot_has_permissions(ban_members=True)
@@ -292,27 +350,50 @@ class Mod(commands.Cog):
     @app_commands.guild_only()
     @app_commands.describe(user="The user to ban", reason="Reason for the ban", remove_messages="Number of days of messages to delete (up to 7 max)", silent="Opt out of notifying the user of the ban via DM")
     @app_commands.command(name="ban", description="Ban a user, and send them a direct message with a reason")
-    async def ban_user_command(self, interaction: discord.Interaction, user: discord.User, reason: str = None, remove_messages: app_commands.Range[int, 0, 7] = 0, silent: bool = False):
-        if await check_top_role_target(interaction=interaction, author=interaction.user, target=user) or await check_staff_target(interaction, user):
-            return
+    async def ban_user_slash_command(self, interaction: discord.Interaction, user: discord.User, reason: str = None, remove_messages: app_commands.Range[int, 0, 7] = 0, silent: bool = False):
+        # This is a mess maybe I should use '''''' but that gives slop looks
+        await self.execute_ban_command(interaction=interaction, user=user, reason=reason, remove_messages=remove_messages, silent=silent, ephemeral_response=False)
 
-        if isinstance(user, discord.Member) and not silent:
-            information_embed = discord.Embed(
-                title=f"You were banned from {interaction.guild.name}.",
-                description=f"Reason: {reason}",
-                color=discord.Color.red()
+    @app_commands.checks.bot_has_permissions(ban_members=True)
+    async def ban_user_context_menu_command_callback(self, interaction: discord.Interaction, user: discord.User):
+        class BanModal(discord.ui.Modal, title="Ban User"):
+            reason = discord.ui.Label(
+                text="Reason for Ban", 
+                component=discord.ui.TextInput(
+                    style=discord.TextStyle.long, 
+                    placeholder="Enter reason here (leave blank if none)", 
+                    max_length=512
+                ),
             )
-            appeals_embed = await generate_appeal_embed(guild_id=interaction.guild.id)
-            await send_dm_message(member=user, guild=interaction.guild, embeds=[information_embed, appeals_embed])
-        
-        try:
-            await interaction.guild.ban(user, reason=reason, delete_message_days=remove_messages)
-        except discord.errors.Forbidden as forbidden_to_ban_exception:
-            await interaction.response.send_message(f"Failed to ban member: {forbidden_to_ban_exception}", ephemeral=True)
-            return
-        
-        await interaction.response.send_message(f"{user} ({user.id}) is now banned.")
-        await post_action_log(author=interaction.user, target=user, action=ActionType.Ban, channel=await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs), reason=reason, color=discord.Color.red())
+            notify_via_dm = discord.ui.Label(
+                text="Notify user via DMs (if possible)",
+                component=discord.ui.Checkbox(
+                    default=True,
+                    custom_id="notify_user_via_dm_ban_checkbox_1",
+                )
+            )
+            purge_duration_selection = discord.ui.Label(
+                text="Clear Message History",
+                component=discord.ui.Select(
+                    min_values=1,
+                    max_values=1,
+                    options=[
+                        discord.SelectOption(value="0", label="Don't clear any", description="Don't clear any of the user's message history"),
+                        discord.SelectOption(value="1", label="1 day", description="Clear the last 1 day of messages from the user"),
+                        discord.SelectOption(value="2", label="2 days", description="Clear the last 2 days of messages from the user"),
+                        discord.SelectOption(value="3", label="3 days", description="Clear the last 3 days of messages from the user"),
+                        discord.SelectOption(value="4", label="4 days", description="Clear the last 4 days of messages from the user"),
+                        discord.SelectOption(value="5", label="5 days", description="Clear the last 5 days of messages from the user"),
+                        discord.SelectOption(value="6", label="6 days", description="Clear the last 6 days of messages from the user"),
+                        discord.SelectOption(value="7", label="7 days", description="Clear the last 7 days of messages from the user"),
+                    ]
+                )
+            )
+            async def on_submit(modal_self, modal_interaction: discord.Interaction):
+                purge_duration = int(modal_self.purge_duration_selection.component.values[0]) # [0] (first element in the list, you can only select one so) 
+                silent = not modal_self.notify_via_dm.component.value # need opposite
+                await self.execute_ban_command(user=user, reason=modal_self.reason.component.value, silent=silent, remove_messages=purge_duration, ephemeral_response=True, interaction=modal_interaction)
+        await interaction.response.send_modal(BanModal())
 
     @app_commands.default_permissions(ban_members=True)
     @app_commands.checks.bot_has_permissions(ban_members=True)
