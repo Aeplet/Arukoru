@@ -13,6 +13,7 @@ class ActionType(Enum):
     RemovedRestrictionFromGuild = auto()
     ApplyRestrictionToUser = auto()
     RemoveRestrictionFromUser = auto()
+    MessagePurge = auto()
 
 class ServerAction(Enum):
     Join = auto()

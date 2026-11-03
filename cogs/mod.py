@@ -231,7 +231,7 @@ class Mod(commands.Cog):
             await interaction.followup.send("You do not have the Manage Messages permission in this channel, and therefore can't use this.", ephemeral=True)
             return
 
-        checks = [lambda m: not m.pinned]
+        checks = [lambda message: not message.pinned]
 
         def check(message):
             return all(c(message) for c in checks)
@@ -245,7 +245,10 @@ class Mod(commands.Cog):
             # eventually log here something.
             await interaction.followup.send(f"Successfully deleted {len(deleted)} messages in {channel.mention}!")
         else:
-            await interaction.followup.send("No messages were deleted.", ephemeral=True)\
+            await interaction.followup.send("No messages were deleted.", ephemeral=True)
+        log_channel = await get_log_channel(guild=interaction.guild, log_channel_type=LogChannelType.ModLogs)
+        # todo: stop using reason for this. and remove this post_action_log ugly system and use CV2 for stuff soon.
+        await post_action_log(action=ActionType.MessagePurge, channel=log_channel, author=interaction.user, reason=f"{len(deleted)} messages purged in {channel.mention}", color=discord.Color.dark_red())
         
     # todo: switch to an embed, or hell rewrite user-info
     @app_commands.guild_only()

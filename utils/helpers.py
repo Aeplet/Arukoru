@@ -56,6 +56,8 @@ def get_string_by_action_type(actionType: ActionType) -> str:
             return "Banned"
         case ActionType.Kick:
             return "Kicked"
+        case ActionType.MessagePurge:
+            return "Purged Messages"
         case ActionType.ScamKick:
             return "Scamkicked"
         case ActionType.Unban:
